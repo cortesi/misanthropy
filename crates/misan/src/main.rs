@@ -99,7 +99,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 model: args.model.clone(),
                 max_tokens: args.max_tokens,
                 messages: vec![Message {
-                    role: "user".to_string(),
+                    role: Role::User,
                     content: args.content.clone(),
                 }],
             };

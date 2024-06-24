@@ -2,17 +2,26 @@ use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use std::env;
 
+pub const DEFAULT_MODEL: &str = "claude-3-opus-20240229";
+pub const DEFAULT_MAX_TOKENS: u32 = 1024;
 pub const ANTHROPIC_API_KEY_ENV: &str = "ANTHROPIC_API_KEY";
 pub const ANTHROPIC_API_DOMAIN_ENV: &str = "ANTHROPIC_API_DOMAIN";
 pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 const DEFAULT_API_DOMAIN: &str = "api.anthropic.com";
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "lowercase")]
+pub enum Role {
+    User,
+    Assistant,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MessagesResponse {
     pub content: Vec<Content>,
     pub id: String,
     pub model: String,
-    pub role: String,
+    pub role: Role,
     pub stop_reason: String,
     pub stop_sequence: Option<String>,
     #[serde(rename = "type")]
@@ -42,7 +51,7 @@ pub struct MessagesRequest {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Message {
-    pub role: String,
+    pub role: Role,
     pub content: String,
 }
 
@@ -50,14 +59,30 @@ pub struct Message {
 pub struct Anthropic {
     api_key: String,
     base_url: String,
+    model: String,
+    max_tokens: u32,
 }
 
 impl Anthropic {
     pub fn new(api_key: String) -> Self {
         let domain =
             env::var(ANTHROPIC_API_DOMAIN_ENV).unwrap_or_else(|_| DEFAULT_API_DOMAIN.to_string());
-        let base_url = format!("https://{}", domain);
-        Self { api_key, base_url }
+        Self {
+            api_key,
+            base_url: format!("https://{}", DEFAULT_API_DOMAIN),
+            model: DEFAULT_MODEL.to_string(),
+            max_tokens: DEFAULT_MAX_TOKENS,
+        }
+    }
+
+    pub fn with_model(mut self, model: String) -> Self {
+        self.model = model;
+        self
+    }
+
+    pub fn with_max_tokens(mut self, max_tokens: u32) -> Self {
+        self.max_tokens = max_tokens;
+        self
     }
 
     pub fn from_env() -> Result<Self, env::VarError> {
@@ -77,6 +102,20 @@ impl Anthropic {
         &self,
         request: MessagesRequest,
     ) -> Result<MessagesResponse, Box<dyn std::error::Error>> {
+        let request = MessagesRequest {
+            model: if request.model.is_empty() {
+                self.model.clone()
+            } else {
+                request.model
+            },
+            max_tokens: if request.max_tokens == 0 {
+                self.max_tokens
+            } else {
+                request.max_tokens
+            },
+            messages: request.messages,
+        };
+
         let client = reqwest::Client::new();
 
         let mut headers = HeaderMap::new();
