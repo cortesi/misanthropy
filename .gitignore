@@ -1,0 +1,6 @@
+/target
+tmp
+docs/book/
+crates/ui/dist
+.cargo/
+.venv

@@ -1,0 +1,10 @@
+[package]
+name = "misanthropy"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+reqwest = "0.12.5"
+reqwest-eventsource = "0.6.0"
+tokio = "1.38.0"
