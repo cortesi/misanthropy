@@ -50,7 +50,11 @@ fn setup_logger(verbose: u8, quiet: bool) {
         }
     };
 
-    builder.filter(None, log_level).init();
+    builder
+        .format_target(false)
+        .format_timestamp(None)
+        .filter(None, log_level)
+        .init();
 }
 
 #[tokio::main]
@@ -88,3 +92,4 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+
