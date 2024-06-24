@@ -669,6 +669,8 @@ dependencies = [
 name = "misanthropy"
 version = "0.0.1"
 dependencies = [
+ "base64",
+ "log",
  "reqwest",
  "reqwest-eventsource",
  "serde",

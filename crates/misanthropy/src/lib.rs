@@ -1,13 +1,30 @@
 //! Rust client for the Anthropic API.
+use std::{env, fs, path::Path};
+
+use base64::prelude::*;
+use log::trace;
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
-use std::env;
 
 pub const DEFAULT_MODEL: &str = "claude-3-opus-20240229";
 pub const DEFAULT_MAX_TOKENS: u32 = 1024;
 pub const ANTHROPIC_API_KEY_ENV: &str = "ANTHROPIC_API_KEY";
 pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 const DEFAULT_API_DOMAIN: &str = "api.anthropic.com";
+
+#[derive(Debug, Deserialize)]
+pub struct ApiErrorResponse {
+    #[serde(rename = "type")]
+    pub error_type: String,
+    pub error: ApiError,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ApiError {
+    #[serde(rename = "type")]
+    pub error_type: String,
+    pub message: String,
+}
 
 /// The role of a participant in a conversation. Can be either a user or an assistant.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
@@ -84,6 +101,37 @@ pub enum Content {
     Image { source: Source },
 }
 
+impl Content {
+    pub fn text(text: impl Into<String>) -> Self {
+        Content::Text { text: text.into() }
+    }
+
+    pub fn image(path: impl AsRef<Path>) -> std::io::Result<Self> {
+        let path = path.as_ref();
+        let image_data = fs::read(path)?;
+        let base64_image = BASE64_STANDARD.encode(image_data);
+
+        Ok(Content::Image {
+            source: Source {
+                source_type: "base64".to_string(),
+                media_type: Self::detect_media_type(path),
+                data: base64_image,
+            },
+        })
+    }
+
+    fn detect_media_type(path: &Path) -> String {
+        match path.extension().and_then(std::ffi::OsStr::to_str) {
+            Some("png") => "image/png",
+            Some("jpg") | Some("jpeg") => "image/jpeg",
+            Some("gif") => "image/gif",
+            Some("webp") => "image/webp",
+            _ => "application/octet-stream", // Default to binary data if unknown
+        }
+        .to_string()
+    }
+}
+
 /// Metadata for an image in a message.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Source {
@@ -108,13 +156,55 @@ pub struct MessagesRequest {
     pub messages: Vec<Message>,
 }
 
+impl MessagesRequest {
+    pub fn new(model: String, max_tokens: u32) -> Self {
+        Self {
+            model,
+            max_tokens,
+            messages: Vec::new(),
+        }
+    }
+
+    pub fn add_user(&mut self, content: Content) {
+        self.add_content(Role::User, content);
+    }
+
+    pub fn add_assistant(&mut self, content: Content) {
+        self.add_content(Role::Assistant, content);
+    }
+
+    fn add_content(&mut self, role: Role, content: Content) {
+        if let Some(last_message) = self.messages.last_mut() {
+            if last_message.role == role {
+                last_message.content.push(content);
+                return;
+            }
+        }
+
+        let mut new_message = Message::new(role);
+        new_message.content.push(content);
+        self.messages.push(new_message);
+    }
+}
+
 /// A single message in a conversation, with a role and content.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Message {
     pub role: Role,
-    pub content: String,
+    pub content: Vec<Content>,
 }
 
+impl Message {
+    pub fn new(role: Role) -> Self {
+        Self {
+            role,
+            content: Vec::new(),
+        }
+    }
+}
+
+/// Client for interacting with the Anthropic API.
+/// Manages authentication and default parameters for requests.
 #[derive(Debug)]
 pub struct Anthropic {
     api_key: String,
@@ -123,8 +213,6 @@ pub struct Anthropic {
     max_tokens: u32,
 }
 
-/// Client for interacting with the Anthropic API.
-/// Manages authentication and default parameters for requests.
 impl Anthropic {
     /// Creates a new Anthropic client with an optional API key.
     /// Uses default values for model and max_tokens.
@@ -189,19 +277,33 @@ impl Anthropic {
             HeaderValue::from_static(ANTHROPIC_API_VERSION),
         );
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+        let url = format!("{}/v1/messages", self.base_url);
+        trace!("Full request:");
+        trace!("URL: {}", url);
+        trace!("Headers: {:#?}", headers);
+        trace!("Body: {:#?}", request);
 
         let response = client
-            .post(format!("{}/v1/messages", self.base_url))
+            .post(url)
             .headers(headers)
             .json(&request)
             .send()
             .await?;
 
         let status = response.status();
+
+        // Debug print the full response, including status and headers
+        trace!("Full response:");
+        trace!("Status: {}", status);
+        trace!("Headers: {:#?}", response.headers());
+
         if status.is_success() {
             let messages_response: MessagesResponse = response.json().await?;
+            trace!("Body: {:#?}", messages_response);
             Ok(messages_response)
         } else {
+            let error_response: ApiErrorResponse = response.json().await?;
+            trace!("Error: {:#?}", error_response);
             Err(format!("API request failed with status: {}", status).into())
         }
     }
