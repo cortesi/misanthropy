@@ -1,3 +1,4 @@
+//! Rust client for the Anthropic API.
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
 use std::env;
@@ -5,17 +6,19 @@ use std::env;
 pub const DEFAULT_MODEL: &str = "claude-3-opus-20240229";
 pub const DEFAULT_MAX_TOKENS: u32 = 1024;
 pub const ANTHROPIC_API_KEY_ENV: &str = "ANTHROPIC_API_KEY";
-pub const ANTHROPIC_API_DOMAIN_ENV: &str = "ANTHROPIC_API_DOMAIN";
 pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 const DEFAULT_API_DOMAIN: &str = "api.anthropic.com";
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+/// The role of a participant in a conversation. Can be either a user or an assistant.
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     User,
     Assistant,
 }
 
+/// The response from the Anthropic API for a message request. Contains generated content, message
+/// metadata, and usage statistics.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MessagesResponse {
     pub content: Vec<Content>,
@@ -29,19 +32,75 @@ pub struct MessagesResponse {
     pub usage: Usage,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Content {
-    pub text: String,
-    #[serde(rename = "type")]
-    pub content_type: String,
+impl MessagesResponse {
+    pub fn format_nicely(&self) -> String {
+        let mut output = String::new();
+        let mut has_user_messages = false;
+
+        for content in &self.content {
+            match content {
+                Content::Text { text } => {
+                    if self.role == Role::User {
+                        has_user_messages = true;
+                        output.push_str(&format!("user: {}\n", text));
+                    } else {
+                        output.push_str(&format!("assistant: {}\n", text));
+                    }
+                }
+                Content::Image { source } => {
+                    output.push_str(&format!(
+                        "{}: [Image: {} {}]\n",
+                        if self.role == Role::User {
+                            "user"
+                        } else {
+                            "assistant"
+                        },
+                        source.source_type,
+                        source.media_type
+                    ));
+                    has_user_messages = true; // Always show roles if there are images
+                }
+            }
+        }
+
+        if !has_user_messages {
+            // If there are only assistant responses, remove the "assistant: " prefix
+            output = output
+                .lines()
+                .map(|line| line.trim_start_matches("assistant: "))
+                .collect::<Vec<&str>>()
+                .join("\n");
+        }
+
+        output.trim().to_string()
+    }
 }
 
+/// A piece of content in a message, either text or an image.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum Content {
+    Text { text: String },
+    Image { source: Source },
+}
+
+/// Metadata for an image in a message.
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Source {
+    #[serde(rename = "type")]
+    pub source_type: String,
+    pub media_type: String,
+    pub data: String,
+}
+
+/// Token usage statistics for a message.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Usage {
     pub input_tokens: u32,
     pub output_tokens: u32,
 }
 
+/// A request to the Anthropic API for message generation.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MessagesRequest {
     pub model: String,
@@ -49,6 +108,7 @@ pub struct MessagesRequest {
     pub messages: Vec<Message>,
 }
 
+/// A single message in a conversation, with a role and content.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Message {
     pub role: Role,
@@ -63,10 +123,12 @@ pub struct Anthropic {
     max_tokens: u32,
 }
 
+/// Client for interacting with the Anthropic API.
+/// Manages authentication and default parameters for requests.
 impl Anthropic {
+    /// Creates a new Anthropic client with an optional API key.
+    /// Uses default values for model and max_tokens.
     pub fn new(api_key: String) -> Self {
-        let domain =
-            env::var(ANTHROPIC_API_DOMAIN_ENV).unwrap_or_else(|_| DEFAULT_API_DOMAIN.to_string());
         Self {
             api_key,
             base_url: format!("https://{}", DEFAULT_API_DOMAIN),
@@ -98,6 +160,8 @@ impl Anthropic {
         }
     }
 
+    /// Sends a message request to the Anthropic API and returns the response.
+    /// Uses client defaults for model and max_tokens if not specified in the request.
     pub async fn messages(
         &self,
         request: MessagesRequest,

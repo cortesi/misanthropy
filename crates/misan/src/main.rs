@@ -106,8 +106,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             match anthropic.messages(request).await {
                 Ok(response) => {
                     info!("Message sent successfully");
-                    println!("Response: {:?}", response);
-                    // You might want to format this output more nicely
+                    println!("{}", response.format_nicely());
                 }
                 Err(e) => error!("Failed to send message: {}", e),
             }
