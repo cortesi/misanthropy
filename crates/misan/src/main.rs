@@ -27,14 +27,26 @@ enum Commands {
     /// Checks status and prints basic info
     Info(Info),
     /// Send a message to the API
-    Message(Message),
+    Message(MessageArgs),
 }
 
 #[derive(Args)]
 struct Info {}
 
 #[derive(Args)]
-struct Message {}
+struct MessageArgs {
+    /// The content of the message to send
+    #[arg(short, long)]
+    content: String,
+
+    /// The model to use (default: claude-3-opus-20240229)
+    #[arg(long, default_value = "claude-3-opus-20240229")]
+    model: String,
+
+    /// The maximum number of tokens in the response
+    #[arg(long, default_value = "1024")]
+    max_tokens: u32,
+}
 
 fn setup_logger(verbose: u8, quiet: bool) {
     let mut builder = Builder::new();
@@ -81,10 +93,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             info!("Running Info command");
             println!("Anthropic client: {:?}", anthropic);
         }
-        Commands::Message(_) => {
+        Commands::Message(args) => {
             info!("Running Message command");
-            match anthropic.messages().await {
-                Ok(_) => info!("Message sent successfully"),
+            let request = MessagesRequest {
+                model: args.model.clone(),
+                max_tokens: args.max_tokens,
+                messages: vec![Message {
+                    role: "user".to_string(),
+                    content: args.content.clone(),
+                }],
+            };
+            match anthropic.messages(request).await {
+                Ok(response) => {
+                    info!("Message sent successfully");
+                    println!("Response: {:?}", response);
+                    // You might want to format this output more nicely
+                }
                 Err(e) => error!("Failed to send message: {}", e),
             }
         }
@@ -92,4 +116,3 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
-

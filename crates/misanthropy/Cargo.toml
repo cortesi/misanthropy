@@ -5,6 +5,7 @@ edition.workspace = true
 authors.workspace = true
 
 [dependencies]
-reqwest = "0.12.5"
+reqwest = { version = "0.12.5", features = ["json"] }
 reqwest-eventsource = "0.6.0"
+serde = { version = "1.0.203", features = ["derive"] }
 tokio = "1.38.0"
