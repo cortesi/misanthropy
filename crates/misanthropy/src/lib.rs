@@ -154,6 +154,8 @@ pub struct MessagesRequest {
     pub model: String,
     pub max_tokens: u32,
     pub messages: Vec<Message>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub system: Option<String>,
 }
 
 impl MessagesRequest {
@@ -162,7 +164,13 @@ impl MessagesRequest {
             model,
             max_tokens,
             messages: Vec::new(),
+            system: None,
         }
+    }
+
+    pub fn with_system(mut self, system: impl Into<String>) -> Self {
+        self.system = Some(system.into());
+        self
     }
 
     pub fn add_user(&mut self, content: Content) {
@@ -266,6 +274,7 @@ impl Anthropic {
                 request.max_tokens
             },
             messages: request.messages,
+            system: request.system,
         };
 
         let client = reqwest::Client::new();

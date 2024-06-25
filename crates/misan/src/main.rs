@@ -64,6 +64,9 @@ struct MessageArgs {
 
     #[arg(long = "aimg", help = "Assistant image file path")]
     assistant_images: Vec<PathBuf>,
+
+    #[arg(short = 's', long = "system", help = "System prompt")]
+    system: Option<String>,
 }
 
 #[derive(Clone)]
@@ -88,9 +91,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })?;
 
     match &cli.command {
-        Commands::Message(_args) => {
+        Commands::Message(args) => {
             info!("Running Message command");
             let mut request = MessagesRequest::new(cli.model.clone(), cli.max_tokens);
+
+            // Add system prompt if provided
+            if let Some(system) = &args.system {
+                request = request.with_system(system);
+            }
 
             // Collect all messages and images with their indices
             let mut messages: Vec<(usize, MessageContent)> = Vec::new();
