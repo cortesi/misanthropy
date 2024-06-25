@@ -1,6 +1,6 @@
 //! Rust client for the Anthropic API.
 use std::any::type_name;
-use std::{env, error::Error, fs, path::Path};
+use std::{env, fs, path::Path};
 
 use base64::prelude::*;
 use futures_util::StreamExt;
@@ -16,6 +16,10 @@ pub const DEFAULT_MAX_TOKENS: u32 = 1024;
 pub const ANTHROPIC_API_KEY_ENV: &str = "ANTHROPIC_API_KEY";
 pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 const DEFAULT_API_DOMAIN: &str = "api.anthropic.com";
+
+mod error;
+
+pub use error::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
@@ -183,7 +187,7 @@ impl StreamedResponse {
     ///
     /// After receiving a `MessageStop` event or when the stream is otherwise completed,
     /// this method will drop the internal `EventSource` and return `None` on subsequent calls.
-    pub async fn next(&mut self) -> Option<Result<StreamEvent, Box<dyn Error>>> {
+    pub async fn next(&mut self) -> Option<Result<StreamEvent>> {
         let event_source = self.event_source.as_mut()?;
 
         while let Some(event) = event_source.next().await {
@@ -201,9 +205,10 @@ impl StreamedResponse {
 
                         return Some(Ok(stream_event));
                     }
-                    Err(e) => return Some(Err(Box::new(e))),
+
+                    Err(e) => return Some(Err(Error::ResponseParseError(e))),
                 },
-                Err(e) => return Some(Err(Box::new(e))),
+                Err(e) => return Some(Err(Error::StreamError(e.to_string()))),
             }
         }
 
@@ -599,12 +604,12 @@ impl Anthropic {
         }
     }
 
-    pub fn from_env() -> Result<Self, env::VarError> {
+    pub fn from_env() -> Result<Self> {
         let api_key = env::var(ANTHROPIC_API_KEY_ENV)?;
         Ok(Self::new(api_key))
     }
 
-    pub fn with_string_or_env(api_key: &str) -> Result<Self, env::VarError> {
+    pub fn with_string_or_env(api_key: &str) -> Result<Self> {
         if !api_key.is_empty() {
             Ok(Self::new(api_key.to_string()))
         } else {
@@ -612,10 +617,7 @@ impl Anthropic {
         }
     }
 
-    pub fn messages_stream(
-        &self,
-        request: MessagesRequest,
-    ) -> Result<StreamedResponse, Box<dyn std::error::Error>> {
+    pub fn messages_stream(&self, request: MessagesRequest) -> Result<StreamedResponse> {
         let mut headers = HeaderMap::new();
         let request = request.with_stream(true);
         headers.insert("x-api-key", HeaderValue::from_str(&self.api_key)?);
@@ -632,17 +634,15 @@ impl Anthropic {
                 .post(&url)
                 .headers(headers)
                 .json(&request),
-        )?;
+        )
+        .map_err(|e| Error::EventSourceError(e.to_string()))?;
 
         Ok(StreamedResponse::new(event_source))
     }
 
     /// Sends a message request to the Anthropic API and returns the response.
     /// Uses client defaults for model and max_tokens if not specified in the request.
-    pub async fn messages(
-        &self,
-        request: MessagesRequest,
-    ) -> Result<MessagesResponse, Box<dyn std::error::Error>> {
+    pub async fn messages(&self, request: MessagesRequest) -> Result<MessagesResponse> {
         let client = reqwest::Client::new();
 
         let mut headers = HeaderMap::new();
@@ -679,7 +679,7 @@ impl Anthropic {
         } else {
             let error_response: ApiErrorResponse = response.json().await?;
             trace!("Error: {:#?}", error_response);
-            Err(format!("API request failed with status: {}", status).into())
+            Err(error_response.into())
         }
     }
 }
