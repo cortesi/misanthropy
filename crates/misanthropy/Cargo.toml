@@ -5,7 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-repository.description = true
+description = "An interface to the Anthropic API"
 
 [dependencies]
 base64 = "0.22.1"
