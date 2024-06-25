@@ -19,7 +19,11 @@ fn setup_logger(verbose: u8, quiet: bool) {
             _ => LevelFilter::Trace,
         }
     };
-    builder.filter(None, log_level).init();
+
+    builder
+        .format_timestamp(None)
+        .filter(None, log_level)
+        .init();
 }
 
 #[derive(Parser)]
@@ -67,6 +71,9 @@ struct MessageArgs {
 
     #[arg(short = 's', long = "system", help = "System prompt")]
     system: Option<String>,
+
+    #[arg(long, help = "Set the temperature for the model's output")]
+    temperature: Option<f32>,
 }
 
 #[derive(Clone)]
@@ -93,11 +100,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match &cli.command {
         Commands::Message(args) => {
             info!("Running Message command");
-            let mut request = MessagesRequest::new(cli.model.clone(), cli.max_tokens);
+            let mut request = MessagesRequest::default()
+                .with_model(cli.model.clone())
+                .with_max_tokens(cli.max_tokens);
 
-            // Add system prompt if provided
             if let Some(system) = &args.system {
                 request = request.with_system(system);
+            }
+
+            if let Some(temp) = &args.temperature {
+                request = request.with_temperature(*temp);
             }
 
             // Collect all messages and images with their indices

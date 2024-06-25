@@ -34,6 +34,25 @@ pub enum Role {
     Assistant,
 }
 
+/// Represents the reason why the model stopped generating content.
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StopReason {
+    /// The model reached a natural stopping point in its generation.
+    EndTurn,
+
+    /// The generation was stopped because it reached the maximum number of tokens
+    /// specified in the request or the model's maximum limit.
+    MaxTokens,
+
+    /// The generation was stopped because it produced one of the custom stop sequences
+    /// provided in the request.
+    StopSequence,
+
+    /// The model invoked one or more tools, which terminated its generation.
+    ToolUse,
+}
+
 /// The response from the Anthropic API for a message request. Contains generated content, message
 /// metadata, and usage statistics.
 #[derive(Debug, Serialize, Deserialize)]
@@ -42,7 +61,7 @@ pub struct MessagesResponse {
     pub id: String,
     pub model: String,
     pub role: Role,
-    pub stop_reason: String,
+    pub stop_reason: StopReason,
     pub stop_sequence: Option<String>,
     #[serde(rename = "type")]
     pub message_type: String,
@@ -156,16 +175,36 @@ pub struct MessagesRequest {
     pub messages: Vec<Message>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub temperature: Option<f32>,
+}
+
+impl Default for MessagesRequest {
+    fn default() -> Self {
+        Self {
+            model: DEFAULT_MODEL.to_string(),
+            max_tokens: DEFAULT_MAX_TOKENS,
+            messages: Vec::new(),
+            system: None,
+            temperature: None,
+        }
+    }
 }
 
 impl MessagesRequest {
-    pub fn new(model: String, max_tokens: u32) -> Self {
-        Self {
-            model,
-            max_tokens,
-            messages: Vec::new(),
-            system: None,
-        }
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = model.into();
+        self
+    }
+
+    pub fn with_temperature(mut self, temperature: f32) -> Self {
+        self.temperature = Some(temperature);
+        self
+    }
+
+    pub fn with_max_tokens(mut self, max_tokens: u32) -> Self {
+        self.max_tokens = max_tokens;
+        self
     }
 
     pub fn with_system(mut self, system: impl Into<String>) -> Self {
@@ -275,6 +314,7 @@ impl Anthropic {
             },
             messages: request.messages,
             system: request.system,
+            temperature: request.temperature,
         };
 
         let client = reqwest::Client::new();
