@@ -80,16 +80,76 @@ while let Some(event) = stream.next().await {
 }
 ```
 
+## Advanced Features
+
 ### Using Tools
 
-The library supports defining and using tools in conversations:
+The library supports defining and using tools in conversations. Tools are
+defined using the `schemars` crate to generate JSON schemas for the tool
+inputs.
+
+1. First, add `schemars` to your dependencies:
+
+```toml
+[dependencies]
+schemars = "0.8"
+```
+
+2. Define your tool input structure and derive `JsonSchema`:
 
 ```rust
+use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
+
+/// Get the current weather for a location.
+#[derive(JsonSchema, Serialize, Deserialize)]
+struct GetWeather {
+    /// The city and country, e.g., "London, UK"
+    location: String,
+    /// Temperature unit: "celsius" or "fahrenheit"
+    unit: Option<String>,
+}
+```
+
+3. Create a `Tool` from your input structure:
+
+```rust
+use misanthropy::{Anthropic, MessagesRequest, Tool};
+
 let weather_tool = Tool::new::<GetWeather>();
+```
+
+4. Add the tool to your request:
+
+```rust
 let request = MessagesRequest::default()
     .with_tool(weather_tool)
     .with_system("You can use the GetWeather tool to check the weather.");
 ```
+
+5. When the AI uses the tool, you can deserialize the input:
+
+```rust
+if let Some(tool_use) = response.content.iter().find_map(|content| {
+    if let Content::ToolUse(tool_use) = content {
+        Some(tool_use)
+    } else {
+        None
+    }
+}) {
+    if tool_use.name == "GetWeather" {
+        let weather_input: GetWeather = serde_json::from_value(tool_use.input.clone())?;
+        println!("Weather requested for: {}", weather_input.location);
+        // Here you would typically call an actual weather API
+    }
+}
+```
+
+This approach allows you to define strongly-typed tool inputs that the AI can
+use, while also providing a way to handle the tool usage in your code.
+
+
+
 
 ## License
 
