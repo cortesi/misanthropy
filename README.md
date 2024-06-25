@@ -1,8 +1,9 @@
 # Misanthropy
 
-![Crates.io](https://img.shields.io/crates/v/misanthropy)
-![docs.rs](https://img.shields.io/docsrs/misanthropy)
+[![Crates.io](https://img.shields.io/crates/v/misanthropy)](https://crates.io/crates/misanthropy)
+[![docs.rs](https://img.shields.io/docsrs/misanthropy)](https://docs.rs/misanthropy)
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-blue.svg?logo=rust)](https://www.rust-lang.org)
+
 
 Misanthropy is a Rust project for interacting with the Anthropic API, providing easy access to Claude and other Anthropic models. It consists of two main components:
 

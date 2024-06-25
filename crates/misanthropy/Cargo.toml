@@ -5,7 +5,6 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-repository.readme = true
 description = "An interface to the Anthropic API"
 readme = "../../README.md"
 
