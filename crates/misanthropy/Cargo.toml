@@ -3,6 +3,9 @@ name = "misanthropy"
 version.workspace = true
 edition.workspace = true
 authors.workspace = true
+license.workspace = true
+repository.workspace = true
+repository.description = true
 
 [dependencies]
 base64 = "0.22.1"
