@@ -5,6 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
+repository.readme = true
 description = "An interface to the Anthropic API"
 
 [dependencies]
@@ -12,5 +13,5 @@ clap = { version = "4.5.7", features = ["derive"] }
 env_logger = "0.11.3"
 futures-util = "0.3.30"
 log = "0.4.21"
-misanthropy = { version="0.0.1", path = "../misanthropy" }
+misanthropy = { version="0.0.2", path = "../misanthropy" }
 tokio = { version = "1.38.0", features = ["full"] }
