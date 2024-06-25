@@ -4,38 +4,20 @@
 [![docs.rs](https://img.shields.io/docsrs/misanthropy)](https://docs.rs/misanthropy)
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-blue.svg?logo=rust)](https://www.rust-lang.org)
 
-
 Misanthropy is a Rust project for interacting with the Anthropic API, providing easy access to Claude and other Anthropic models. It consists of two main components:
 
 1. `misanthropy`: A Rust client library for the Anthropic API
 2. `misan`: A command-line interface (CLI) tool for quick interactions with the API
 
+
 ## Features
 
 - Simple, idiomatic Rust interface for the Anthropic API
 - Support for text and image content in messages
-- Streaming support for real-time responses
+- Support for streaming real-time responses
 - Configurable client with defaults for model and token limits
 - CLI tool for quick interactions with the API from the command line
 
-## Installation
-
-### Library
-
-To use the `misanthropy` library in your Rust project, add this to your `Cargo.toml`:
-
-```toml
-[dependencies]
-misanthropy = "0.1.0"
-```
-
-### CLI Tool
-
-To install the `misan` CLI tool:
-
-```bash
-cargo install misan
-```
 
 ## Usage
 
@@ -60,9 +42,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
-For more examples, please check the `examples` directory in the `misanthropy`
-crate at `./crates/misanthropy/examples`. These examples demonstrate various
-features and use cases of the library.
+For more examples, please check the [`examples`](./crates/misanthropy/examples)
+directory in the `misanthropy` crate. These examples demonstrate various
+features and use cases of the library. 
+
 
 ### CLI
 
@@ -111,3 +94,7 @@ let request = MessagesRequest::default()
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+
+
+
