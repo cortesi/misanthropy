@@ -11,22 +11,35 @@ use schemars::{schema::RootSchema, schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+/// Default Anthropic AI model identifier used for API requests.
 pub const DEFAULT_MODEL: &str = "claude-3-opus-20240229";
+
+/// Default maximum number of tokens for AI model responses.
 pub const DEFAULT_MAX_TOKENS: u32 = 1024;
+
+/// Environment variable name for the Anthropic API key.
 pub const ANTHROPIC_API_KEY_ENV: &str = "ANTHROPIC_API_KEY";
+
+/// Version of the Anthropic API used in requests.
 pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
+
 const DEFAULT_API_DOMAIN: &str = "api.anthropic.com";
 
 mod error;
 
 pub use error::*;
 
+/// Specifies how the AI model should choose and use tools in a conversation.
+/// Can be set to automatic, any tool, or a specific tool.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum ToolChoice {
+    /// Let the model automatically decide whether to use tools.
     #[default]
     Auto,
+    /// Allow the model to use any available tool.
     Any,
+    /// Instruct the model to use a specific tool.
     #[serde(rename = "tool")]
     SpecificTool(String),
 }
@@ -77,8 +90,11 @@ pub enum ToolChoice {
 /// is well-documented, as this information is used directly in the created `Tool`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Tool {
+    /// The name of the tool.
     pub name: String,
+    /// A description of the tool's purpose and functionality.
     pub description: String,
+    /// The JSON schema defining the structure of the tool's input.
     pub input_schema: RootSchema,
 }
 
@@ -112,41 +128,71 @@ impl Tool {
     }
 }
 
+/// An event in the streaming response from the Anthropic API.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StreamEvent {
+    /// Indicates the start of a new message.
     MessageStart {
+        /// The initial message response.
         message: MessagesResponse,
     },
+    /// Marks the beginning of a new content block.
     ContentBlockStart {
+        /// The index of the content block.
         index: usize,
+        /// The initial content of the block.
         content_block: Content,
     },
+    /// A keep-alive event to maintain the connection.
     Ping,
+    /// Represents an update to an existing content block.
     ContentBlockDelta {
+        /// The index of the content block being updated.
         index: usize,
+        /// The incremental change to the content block.
         delta: ContentBlockDelta,
     },
+    /// Signals the end of a content block.
     ContentBlockStop {
+        /// The index of the completed content block.
         index: usize,
     },
+    /// Represents an update to the overall message.
     MessageDelta {
+        /// The incremental change to the message.
         delta: MessageDelta,
+        /// Updated token usage information.
         usage: Usage,
     },
+    /// Indicates the completion of the entire message.
     MessageStop,
 }
 
+/// An incremental update to a content block in a streaming response.
+/// Can be either a text delta or a partial JSON update.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ContentBlockDelta {
-    TextDelta { text: String },
-    InputJsonDelta { partial_json: String },
+    /// An update to a text content block.
+    TextDelta {
+        /// The new text to be appended.
+        text: String,
+    },
+    /// An update to a JSON content block.
+    InputJsonDelta {
+        /// The partial JSON string to be appended or merged.
+        partial_json: String,
+    },
 }
 
+/// Incremental update to a message in a streaming response.
+/// Contains changes to the stop reason and stop sequence.
 #[derive(Debug, Deserialize)]
 pub struct MessageDelta {
+    /// The updated reason for why the model stopped generating, if any.
     pub stop_reason: Option<StopReason>,
+    /// The updated stop sequence that caused the model to stop, if any.
     pub stop_sequence: Option<String>,
 }
 
@@ -159,7 +205,9 @@ pub struct MessageDelta {
 /// The stream is considered complete when `next()` returns `None` or a `MessageStop`
 /// event is received, at which point the `event_source` is dropped.
 pub struct StreamedResponse {
+    /// The accumulated response data from the stream.
     pub response: MessagesResponse,
+    /// The underlying event source for the stream, if active.
     event_source: Option<EventSource>,
 }
 
@@ -276,17 +324,47 @@ impl StreamedResponse {
     }
 }
 
+/// Represents the types of errors that can be returned by the Anthropic API.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ApiErrorType {
+    /// There was an issue with the format or content of the request (HTTP 400).
+    InvalidRequestError,
+    /// There's an issue with the API key (HTTP 401).
+    AuthenticationError,
+    /// The API key does not have permission to use the specified resource (HTTP 403).
+    PermissionError,
+    /// The requested resource was not found (HTTP 404).
+    NotFoundError,
+    /// The account has hit a rate limit (HTTP 429).
+    RateLimitError,
+    /// An unexpected error has occurred internal to Anthropic's systems (HTTP 500).
+    ApiError,
+    /// Anthropic's API is temporarily overloaded (HTTP 529).
+    OverloadedError,
+    /// An error type not explicitly handled (other HTTP status codes).
+    #[serde(other)]
+    Other,
+}
+
+/// The top-level error structure returned by the Anthropic API.
+/// Includes the error type and a nested ApiError with more details.
 #[derive(Debug, Deserialize)]
 pub struct ApiErrorResponse {
+    /// The type of error that occurred.
     #[serde(rename = "type")]
-    pub error_type: String,
+    pub error_type: ApiErrorType,
+    /// Detailed information about the error.
     pub error: ApiError,
 }
 
+/// Contains detailed information about an error returned by the Anthropic API.
 #[derive(Debug, Deserialize)]
 pub struct ApiError {
+    /// A string identifier for the error type.
     #[serde(rename = "type")]
     pub error_type: String,
+    /// A human-readable description of the error.
     pub message: String,
 }
 
@@ -294,8 +372,10 @@ pub struct ApiError {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
+    /// The user or client interacting with the AI.
     #[default]
     User,
+    /// The AI assistant responding to the user.
     Assistant,
 }
 
@@ -322,17 +402,22 @@ pub enum StopReason {
 /// metadata, and usage statistics.
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct MessagesResponse {
+    /// The generated content of the message.
     pub content: Vec<Content>,
+    /// Unique identifier for this message.
     pub id: String,
+    /// The AI model used to generate this response.
     pub model: String,
+    /// The role of the entity that produced this message.
     pub role: Role,
+    /// The reason why the AI stopped generating content, if applicable.
     pub stop_reason: Option<StopReason>,
+    /// The sequence that caused the AI to stop generating, if applicable.
     pub stop_sequence: Option<String>,
-
     /// Always "message" for this type of response.
     #[serde(rename = "type")]
     pub message_type: String,
-
+    /// Token usage statistics for this response.
     pub usage: Usage,
 }
 
@@ -393,10 +478,14 @@ impl MessagesResponse {
     }
 }
 
+/// A tool used by the AI model during a conversation.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ToolUse {
+    /// Unique identifier for this tool use instance.
     pub id: String,
+    /// The name of the tool that was used.
     pub name: String,
+    /// The input provided to the tool, in a flexible JSON format.
     pub input: Value,
 }
 
@@ -404,8 +493,11 @@ pub struct ToolUse {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Content {
+    /// Textual content.
     Text { text: String },
+    /// An image with its source information.
     Image { source: Source },
+    /// Details of a tool used by the AI.
     ToolUse(ToolUse),
 }
 
@@ -443,16 +535,21 @@ impl Content {
 /// Metadata for an image in a message.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Source {
+    /// The type of image source (e.g., "base64").
     #[serde(rename = "type")]
     pub source_type: String,
+    /// MIME type of the image (e.g., "image/jpeg").
     pub media_type: String,
+    /// The image data, typically base64-encoded.
     pub data: String,
 }
 
 /// Token usage statistics for a message.
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct Usage {
+    /// Number of tokens in the input message
     pub input_tokens: Option<u32>,
+    /// Number of tokens in the output message
     pub output_tokens: Option<u32>,
 }
 
@@ -463,16 +560,24 @@ fn is_default_tool_choice(choice: &ToolChoice) -> bool {
 /// A request to the Anthropic API for message generation.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MessagesRequest {
+    /// The AI model to use for generating the response.
     pub model: String,
+    /// The maximum number of tokens to generate.
     pub max_tokens: u32,
+    /// The conversation history and any new messages to process.
     pub messages: Vec<Message>,
+    /// Optional system message to guide the AI's behavior.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub system: Option<String>,
+    /// Optional temperature setting for response randomness.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
+    /// Whether to return a streaming response.
     pub stream: bool,
+    /// List of tools available for the AI to use.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<Tool>,
+    /// How the AI should choose which tool to use, if any.
     #[serde(skip_serializing_if = "is_default_tool_choice")]
     pub tool_choice: ToolChoice,
 }
@@ -604,12 +709,16 @@ impl Anthropic {
         }
     }
 
+    /// Creates an Anthropic client using the API key from the environment.
+    /// Reads the key from the ANTHROPIC_API_KEY environment variable.
     pub fn from_env() -> Result<Self> {
         let api_key = env::var(ANTHROPIC_API_KEY_ENV)?;
         Ok(Self::new(api_key))
     }
 
-    pub fn with_string_or_env(api_key: &str) -> Result<Self> {
+    // Creates an Anthropic client using a provided API key or the environment.
+    /// If the provided string is empty, falls back to the ANTHROPIC_API_KEY environment variable.
+    pub fn from_string_or_env(api_key: &str) -> Result<Self> {
         if !api_key.is_empty() {
             Ok(Self::new(api_key.to_string()))
         } else {
@@ -617,6 +726,8 @@ impl Anthropic {
         }
     }
 
+    /// Sends a message request to the Anthropic API and returns a streaming response.
+    /// Allows processing of incremental updates as they arrive from the API.
     pub fn messages_stream(&self, request: MessagesRequest) -> Result<StreamedResponse> {
         let mut headers = HeaderMap::new();
         let request = request.with_stream(true);

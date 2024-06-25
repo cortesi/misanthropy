@@ -239,7 +239,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     setup_logger(cli.verbose, cli.quiet);
 
-    let anthropic = Anthropic::with_string_or_env(cli.api_key.as_deref().unwrap_or(""))?;
+    let anthropic = Anthropic::from_string_or_env(cli.api_key.as_deref().unwrap_or(""))?;
 
     match &cli.command {
         Commands::Message(args) => {
