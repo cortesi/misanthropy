@@ -53,17 +53,25 @@ enum Commands {
 
 #[derive(Args)]
 struct MessageArgs {
-    #[arg(short = 'p', long = "prompt")]
-    user_prompts: Vec<String>,
+    #[arg(short = 'u', long = "user", help = "User text message")]
+    user_messages: Vec<String>,
 
-    #[arg(short = 'i', long = "img")]
+    #[arg(short = 'a', long = "assistant", help = "Assistant text message")]
+    assistant_messages: Vec<String>,
+
+    #[arg(long = "uimg", help = "User image file path")]
     user_images: Vec<PathBuf>,
 
-    #[arg(long = "assistant-prompt")]
-    assistant_prompts: Vec<String>,
-
-    #[arg(long = "assistant-img")]
+    #[arg(long = "aimg", help = "Assistant image file path")]
     assistant_images: Vec<PathBuf>,
+}
+
+#[derive(Clone)]
+enum MessageContent {
+    UserText(String),
+    AssistantText(String),
+    UserImage(PathBuf),
+    AssistantImage(PathBuf),
 }
 
 #[tokio::main]
@@ -80,37 +88,68 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         })?;
 
     match &cli.command {
-        Commands::Message(args) => {
+        Commands::Message(_args) => {
             info!("Running Message command");
             let mut request = MessagesRequest::new(cli.model.clone(), cli.max_tokens);
 
-            // Process user prompts and images
-            for prompt in &args.user_prompts {
-                request.add_user(Content::text(prompt));
-            }
+            // Collect all messages and images with their indices
+            let mut messages: Vec<(usize, MessageContent)> = Vec::new();
 
-            for image_path in &args.user_images {
-                match Content::image(image_path) {
-                    Ok(content) => request.add_user(content),
-                    Err(e) => {
-                        error!("Failed to read image file {}: {}", image_path.display(), e);
-                        return Err(e.into());
+            for (index, value) in std::env::args().enumerate() {
+                match value.as_str() {
+                    "-u" | "--user" => {
+                        if let Some(text) = std::env::args().nth(index + 1) {
+                            messages.push((index, MessageContent::UserText(text)));
+                        }
                     }
+                    "-a" | "--assistant" => {
+                        if let Some(text) = std::env::args().nth(index + 1) {
+                            messages.push((index, MessageContent::AssistantText(text)));
+                        }
+                    }
+                    "--uimg" => {
+                        if let Some(path) = std::env::args().nth(index + 1) {
+                            messages.push((index, MessageContent::UserImage(PathBuf::from(path))));
+                        }
+                    }
+                    "--aimg" => {
+                        if let Some(path) = std::env::args().nth(index + 1) {
+                            messages
+                                .push((index, MessageContent::AssistantImage(PathBuf::from(path))));
+                        }
+                    }
+                    _ => {}
                 }
             }
 
-            // Process assistant prompts and images
-            for prompt in &args.assistant_prompts {
-                request.add_assistant(Content::text(prompt));
-            }
+            // Sort messages by their original order
+            messages.sort_by_key(|&(index, _)| index);
 
-            for image_path in &args.assistant_images {
-                match Content::image(image_path) {
-                    Ok(content) => request.add_assistant(content),
-                    Err(e) => {
-                        error!("Failed to read image file {}: {}", image_path.display(), e);
-                        return Err(e.into());
+            // Process messages in order
+            for (_, content) in messages {
+                match content {
+                    MessageContent::UserText(text) => request.add_user(Content::text(text)),
+                    MessageContent::AssistantText(text) => {
+                        request.add_assistant(Content::text(text))
                     }
+                    MessageContent::UserImage(path) => match Content::image(&path) {
+                        Ok(content) => request.add_user(content),
+                        Err(e) => {
+                            error!("Failed to read user image file {}: {}", path.display(), e);
+                            return Err(e.into());
+                        }
+                    },
+                    MessageContent::AssistantImage(path) => match Content::image(&path) {
+                        Ok(content) => request.add_assistant(content),
+                        Err(e) => {
+                            error!(
+                                "Failed to read assistant image file {}: {}",
+                                path.display(),
+                                e
+                            );
+                            return Err(e.into());
+                        }
+                    },
                 }
             }
 
