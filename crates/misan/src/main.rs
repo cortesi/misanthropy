@@ -146,9 +146,8 @@ async fn handle_stream(
     match anthropic.messages_stream(request) {
         Ok(mut streamed_response) => {
             info!("Stream started successfully");
-            while let Some(result) = streamed_response.next().await {
-                //       println!("{:?}", result);
-            }
+            while (streamed_response.next().await).is_some() {}
+            println!("{}", streamed_response.inner.format_nicely());
         }
         Err(e) => error!("Failed to start stream: {}", e),
     }

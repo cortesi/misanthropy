@@ -39,11 +39,11 @@ pub enum StreamEvent {
     MessageStop,
 }
 
-#[derive(Debug, Deserialize)]
-pub struct ContentBlockDelta {
-    #[serde(rename = "type")]
-    pub delta_type: String,
-    pub text: String,
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ContentBlockDelta {
+    TextDelta { text: String },
+    InputJsonDelta { partial_json: String },
 }
 
 #[derive(Debug, Deserialize)]
@@ -53,7 +53,7 @@ pub struct MessageDelta {
 }
 
 pub struct StreamedResponse {
-    inner: MessagesResponse,
+    pub inner: MessagesResponse,
     event_source: Option<EventSource>,
 }
 
@@ -115,8 +115,14 @@ impl StreamedResponse {
             }
             StreamEvent::ContentBlockDelta { index, delta } => {
                 if let Some(block) = self.inner.content.get_mut(*index) {
-                    if let Content::Text { text } = block {
-                        text.push_str(&delta.text);
+                    match block {
+                        Content::Text { text } => match delta {
+                            ContentBlockDelta::TextDelta { text: delta_text } => {
+                                text.push_str(delta_text);
+                            }
+                            ContentBlockDelta::InputJsonDelta { .. } => {}
+                        },
+                        Content::Image { .. } => {}
                     }
                 }
             }
