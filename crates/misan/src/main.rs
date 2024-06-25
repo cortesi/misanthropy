@@ -144,38 +144,10 @@ async fn handle_stream(
     debug!("Constructed request: {:#?}", request);
 
     match anthropic.messages_stream(request) {
-        Ok(mut streamed_message) => {
+        Ok(mut streamed_response) => {
             info!("Stream started successfully");
-            while let Some(result) = streamed_message.next().await {
-                match result {
-                    Ok(event) => match event {
-                        StreamEvent::MessageStart(_) => info!("Message started"),
-                        StreamEvent::ContentBlockStart { index, .. } => {
-                            debug!("Content block {} started", index)
-                        }
-                        StreamEvent::ContentBlockDelta { index, delta } => {
-                            if cli.verbose >= 2 {
-                                debug!("Content block {} updated: {:?}", index, delta);
-                            }
-                            if let Content::Text { text } = delta {
-                                print!("{}", text);
-                                std::io::stdout().flush()?;
-                            }
-                        }
-                        StreamEvent::ContentBlockStop { index } => {
-                            debug!("Content block {} finished", index)
-                        }
-                        StreamEvent::MessageDelta(_) => debug!("Message updated"),
-                        StreamEvent::MessageStop(_) => {
-                            println!("\nMessage finished");
-                            if let Some(final_message) = streamed_message.current_message() {
-                                println!("\nFinal message:");
-                                println!("{}", final_message.format_nicely());
-                            }
-                        }
-                    },
-                    Err(e) => error!("Stream error: {}", e),
-                }
+            while let Some(result) = streamed_response.next().await {
+                //       println!("{:?}", result);
             }
         }
         Err(e) => error!("Failed to start stream: {}", e),
