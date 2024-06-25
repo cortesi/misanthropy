@@ -1,12 +1,13 @@
-use std::io::Write;
-use std::path::PathBuf;
+use std::{env, path::PathBuf};
 
 use clap::{Args, Parser, Subcommand};
 use env_logger::Builder;
 use log::{debug, error, info, LevelFilter};
 
-use futures_util::StreamExt;
-use misanthropy::{Anthropic, Content, MessagesRequest, StreamEvent};
+use misanthropy::{
+    Anthropic, Content, MessagesRequest, ANTHROPIC_API_KEY_ENV, ANTHROPIC_API_VERSION,
+    DEFAULT_MAX_TOKENS, DEFAULT_MODEL,
+};
 
 fn setup_logger(verbose: u8, quiet: bool) {
     let mut builder = Builder::new();
@@ -57,6 +58,8 @@ enum Commands {
     Message(MessageArgs),
     /// Stream a message from the API
     Stream(MessageArgs),
+    /// Display information about the tool and API
+    Info,
 }
 
 #[derive(Args)]
@@ -86,26 +89,6 @@ enum MessageContent {
     AssistantText(String),
     UserImage(PathBuf),
     AssistantImage(PathBuf),
-}
-
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let cli = Cli::parse();
-
-    setup_logger(cli.verbose, cli.quiet);
-
-    let anthropic = Anthropic::with_string_or_env(cli.api_key.as_deref().unwrap_or(""))?;
-
-    match &cli.command {
-        Commands::Message(args) => {
-            handle_message(&anthropic, args, &cli).await?;
-        }
-        Commands::Stream(args) => {
-            handle_stream(&anthropic, args, &cli).await?;
-        }
-    }
-
-    Ok(())
 }
 
 async fn handle_message(
@@ -230,4 +213,45 @@ fn build_request(
     }
 
     Ok(request)
+}
+
+fn handle_info(cli: &Cli) {
+    println!("Misan:");
+    println!("\tVersion: {}", env!("CARGO_PKG_VERSION"));
+    println!("\tDefault Model: {}", DEFAULT_MODEL);
+    println!("\tDefault Max Tokens: {}", DEFAULT_MAX_TOKENS);
+    println!("\tAnthropic API Version: {}", ANTHROPIC_API_VERSION);
+    if cli.api_key.is_some() {
+        println!("\tAPI Key: Provided via command line argument");
+    } else if env::var(ANTHROPIC_API_KEY_ENV).is_ok() {
+        println!(
+            "\tAPI Key: Detected in environment variable {}",
+            ANTHROPIC_API_KEY_ENV
+        );
+    } else {
+        println!("\tAPI Key: Not detected");
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let cli = Cli::parse();
+
+    setup_logger(cli.verbose, cli.quiet);
+
+    let anthropic = Anthropic::with_string_or_env(cli.api_key.as_deref().unwrap_or(""))?;
+
+    match &cli.command {
+        Commands::Message(args) => {
+            handle_message(&anthropic, args, &cli).await?;
+        }
+        Commands::Stream(args) => {
+            handle_stream(&anthropic, args, &cli).await?;
+        }
+        Commands::Info => {
+            handle_info(&cli);
+        }
+    }
+
+    Ok(())
 }
