@@ -256,8 +256,6 @@ impl Message {
 pub struct Anthropic {
     api_key: String,
     base_url: String,
-    model: String,
-    max_tokens: u32,
 }
 
 impl Anthropic {
@@ -267,19 +265,7 @@ impl Anthropic {
         Self {
             api_key,
             base_url: format!("https://{}", DEFAULT_API_DOMAIN),
-            model: DEFAULT_MODEL.to_string(),
-            max_tokens: DEFAULT_MAX_TOKENS,
         }
-    }
-
-    pub fn with_model(mut self, model: String) -> Self {
-        self.model = model;
-        self
-    }
-
-    pub fn with_max_tokens(mut self, max_tokens: u32) -> Self {
-        self.max_tokens = max_tokens;
-        self
     }
 
     pub fn from_env() -> Result<Self, env::VarError> {
@@ -301,22 +287,6 @@ impl Anthropic {
         &self,
         request: MessagesRequest,
     ) -> Result<MessagesResponse, Box<dyn std::error::Error>> {
-        let request = MessagesRequest {
-            model: if request.model.is_empty() {
-                self.model.clone()
-            } else {
-                request.model
-            },
-            max_tokens: if request.max_tokens == 0 {
-                self.max_tokens
-            } else {
-                request.max_tokens
-            },
-            messages: request.messages,
-            system: request.system,
-            temperature: request.temperature,
-        };
-
         let client = reqwest::Client::new();
 
         let mut headers = HeaderMap::new();

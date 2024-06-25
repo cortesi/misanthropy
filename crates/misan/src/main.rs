@@ -4,7 +4,7 @@ use clap::{Args, Parser, Subcommand};
 use env_logger::Builder;
 use log::{debug, error, info, LevelFilter};
 
-use misanthropy::{Anthropic, Content, Message, MessagesRequest, Role};
+use misanthropy::{Anthropic, Content, MessagesRequest};
 
 fn setup_logger(verbose: u8, quiet: bool) {
     let mut builder = Builder::new();
@@ -92,10 +92,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     setup_logger(cli.verbose, cli.quiet);
 
     let anthropic =
-        Anthropic::with_string_or_env(cli.api_key.as_deref().unwrap_or("")).map(|a| {
-            a.with_model(cli.model.clone())
-                .with_max_tokens(cli.max_tokens)
-        })?;
+        Anthropic::with_string_or_env(cli.api_key.as_deref().unwrap_or("")).map(|a| {})?;
 
     match &cli.command {
         Commands::Message(args) => {
