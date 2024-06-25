@@ -1,12 +1,11 @@
 
 [workspace.package]
-version = "0.0.2"
+version = "0.0.3"
 edition = "2021"
 authors = ["Aldo Cortesi <aldo@corte.si>"]
 description = "An interface to the Anthropic API"
 license = "MIT"
 repository = "https://github.com/cortesi/misanthropy"
-readme = "README.md"
 
 [workspace]
 resolver = "2"

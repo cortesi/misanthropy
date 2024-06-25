@@ -13,5 +13,5 @@ clap = { version = "4.5.7", features = ["derive"] }
 env_logger = "0.11.3"
 futures-util = "0.3.30"
 log = "0.4.21"
-misanthropy = { version="0.0.2", path = "../misanthropy" }
+misanthropy = { version="0.0.3", path = "../misanthropy" }
 tokio = { version = "1.38.0", features = ["full"] }
