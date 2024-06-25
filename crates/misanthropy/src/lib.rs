@@ -1,4 +1,5 @@
 //! Rust client for the Anthropic API.
+use std::any::type_name;
 use std::{env, error::Error, fs, path::Path};
 
 use base64::prelude::*;
@@ -6,13 +7,62 @@ use futures_util::StreamExt;
 use log::trace;
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use reqwest_eventsource::{Event, EventSource};
+use schemars::{schema::RootSchema, schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 pub const DEFAULT_MODEL: &str = "claude-3-opus-20240229";
 pub const DEFAULT_MAX_TOKENS: u32 = 1024;
 pub const ANTHROPIC_API_KEY_ENV: &str = "ANTHROPIC_API_KEY";
 pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 const DEFAULT_API_DOMAIN: &str = "api.anthropic.com";
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ToolChoice {
+    #[default]
+    Auto,
+    Any,
+    #[serde(rename = "tool")]
+    SpecificTool(String),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Tool {
+    pub name: String,
+    pub description: String,
+    pub input_schema: RootSchema,
+}
+
+impl Tool {
+    pub fn new<T: JsonSchema>() -> Self {
+        let schema = schema_for!(T);
+        let description = schema
+            .schema
+            .metadata
+            .as_ref()
+            .and_then(|m| m.description.clone())
+            .unwrap_or_else(|| "No description provided".to_string());
+
+        let name = type_name::<T>()
+            .split("::")
+            .last()
+            .unwrap_or("UnknownTool")
+            .to_string();
+
+        Self {
+            name,
+            description,
+            input_schema: schema,
+        }
+    }
+
+    pub fn with_name<T: JsonSchema>(name: String) -> Self {
+        let mut tool = Self::new::<T>();
+        tool.name = name;
+        tool
+    }
+}
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -147,6 +197,7 @@ impl StreamedResponse {
                             ContentBlockDelta::InputJsonDelta { .. } => {}
                         },
                         Content::Image { .. } => {}
+                        Content::ToolUse { .. } => {}
                     }
                 }
             }
@@ -264,6 +315,19 @@ impl MessagesResponse {
                     ));
                     has_user_messages = true; // Always show roles if there are images
                 }
+                Content::ToolUse(tool_use) => {
+                    output.push_str(&format!(
+                        "{}: [Tool: {} {}]\n",
+                        if self.role == Role::User {
+                            "user"
+                        } else {
+                            "assistant"
+                        },
+                        tool_use.name,
+                        tool_use.input
+                    ));
+                    has_user_messages = true; // Always show roles if there are tools
+                }
             }
         }
 
@@ -280,12 +344,20 @@ impl MessagesResponse {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ToolUse {
+    pub id: String,
+    pub name: String,
+    pub input: Value,
+}
+
 /// A piece of content in a message, either text or an image.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(tag = "type", rename_all = "lowercase")]
+#[serde(tag = "type", rename_all = "snake_case")]
 pub enum Content {
     Text { text: String },
     Image { source: Source },
+    ToolUse(ToolUse),
 }
 
 impl Content {
@@ -335,6 +407,10 @@ pub struct Usage {
     pub output_tokens: Option<u32>,
 }
 
+fn is_default_tool_choice(choice: &ToolChoice) -> bool {
+    *choice == ToolChoice::Auto
+}
+
 /// A request to the Anthropic API for message generation.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MessagesRequest {
@@ -346,6 +422,10 @@ pub struct MessagesRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
     pub stream: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub tools: Vec<Tool>,
+    #[serde(skip_serializing_if = "is_default_tool_choice")]
+    pub tool_choice: ToolChoice,
 }
 
 impl Default for MessagesRequest {
@@ -357,11 +437,18 @@ impl Default for MessagesRequest {
             system: None,
             temperature: None,
             stream: false,
+            tools: Vec::new(),
+            tool_choice: ToolChoice::default(),
         }
     }
 }
 
 impl MessagesRequest {
+    pub fn with_tool(mut self, tool: Tool) -> Self {
+        self.tools.push(tool);
+        self
+    }
+
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = model.into();
         self
@@ -437,6 +524,9 @@ impl Message {
                 Content::Text { text } => text.clone(),
                 Content::Image { source } => {
                     format!("[Image: {} {}]", source.source_type, source.media_type)
+                }
+                Content::ToolUse(tool_use) => {
+                    format!("[Tool: {} {}]", tool_use.name, tool_use.input)
                 }
             })
             .collect();
@@ -547,5 +637,87 @@ impl Anthropic {
             trace!("Error: {:#?}", error_response);
             Err(format!("API request failed with status: {}", status).into())
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+
+    /// This is a test description
+    #[allow(dead_code)]
+    #[derive(JsonSchema)]
+    struct TestInput {
+        required_field: String,
+        optional_field: Option<i32>,
+        enum_field: TestEnum,
+    }
+
+    #[allow(dead_code)]
+    #[derive(JsonSchema)]
+    enum TestEnum {
+        OptionA,
+        OptionB,
+    }
+
+    #[test]
+    fn test_tool_creation_and_serialization() {
+        // Create a tool
+        let tool = Tool::new::<TestInput>();
+
+        // Check the basic properties
+        assert_eq!(tool.name, "TestInput");
+        assert_eq!(tool.description, "This is a test description");
+
+        // Serialize the tool to JSON
+        let json = serde_json::to_value(&tool).expect("Failed to serialize Tool to JSON");
+
+        // Check the structure of the serialized JSON
+        assert!(json.is_object());
+        let json_obj = json.as_object().unwrap();
+
+        assert!(json_obj.contains_key("name"));
+        assert!(json_obj.contains_key("description"));
+        assert!(json_obj.contains_key("input_schema"));
+
+        // Check the input_schema
+        let input_schema = &json_obj["input_schema"];
+        assert!(input_schema.is_object());
+        let schema_obj = input_schema.as_object().unwrap();
+
+        // Check for required fields in the schema
+        assert!(schema_obj.contains_key("type"));
+        assert!(schema_obj.contains_key("properties"));
+        assert!(schema_obj.contains_key("required"));
+
+        // Check the properties in the schema
+        let properties = &schema_obj["properties"];
+        assert!(properties.is_object());
+        let props_obj = properties.as_object().unwrap();
+
+        assert!(props_obj.contains_key("required_field"));
+        assert!(props_obj.contains_key("optional_field"));
+        assert!(props_obj.contains_key("enum_field"));
+
+        // Check the enum field
+        let enum_field = &props_obj["enum_field"];
+        assert!(enum_field.is_object());
+
+        // Check the definitions for the enum
+        let definitions = &schema_obj["definitions"];
+        assert!(definitions.is_object());
+        let defs_obj = definitions.as_object().unwrap();
+
+        assert!(defs_obj.contains_key("TestEnum"));
+        let test_enum_def = &defs_obj["TestEnum"];
+        assert!(test_enum_def.is_object());
+
+        let test_enum_obj = test_enum_def.as_object().unwrap();
+
+        assert_eq!(test_enum_obj["type"], "string");
+        let enum_values = test_enum_obj["enum"].as_array().unwrap();
+        assert!(enum_values.contains(&Value::String("OptionA".to_string())));
+        assert!(enum_values.contains(&Value::String("OptionB".to_string())));
     }
 }
