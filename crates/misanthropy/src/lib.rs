@@ -52,19 +52,43 @@ pub struct MessageDelta {
     pub stop_sequence: Option<String>,
 }
 
+/// Manages a streamed response from the Anthropic API for message generation.
+///
+/// This struct handles the incremental updates to message content and metadata
+/// received as streaming events. It encapsulates an `EventSource` for receiving
+/// events and maintains the current state of the response.
+///
+/// The stream is considered complete when `next()` returns `None` or a `MessageStop`
+/// event is received, at which point the `event_source` is dropped.
 pub struct StreamedResponse {
-    pub inner: MessagesResponse,
+    pub response: MessagesResponse,
     event_source: Option<EventSource>,
 }
 
 impl StreamedResponse {
     pub fn new(event_source: EventSource) -> Self {
         Self {
-            inner: MessagesResponse::default(),
+            response: MessagesResponse::default(),
             event_source: Some(event_source),
         }
     }
 
+    /// Retrieves the next event from the stream.
+    ///
+    /// This method asynchronously fetches the next `StreamEvent` from the underlying
+    /// `EventSource`. It handles the internal state of the stream, including merging
+    /// events into the response and managing stream completion.
+    ///
+    /// # Returns
+    ///
+    /// - `Some(Ok(StreamEvent))` if an event was successfully retrieved.
+    /// - `Some(Err(...))` if an error occurred while fetching or parsing an event.
+    /// - `None` if the stream has been completed or a `MessageStop` event was previously received.
+    ///
+    /// # Note
+    ///
+    /// After receiving a `MessageStop` event or when the stream is otherwise completed,
+    /// this method will drop the internal `EventSource` and return `None` on subsequent calls.
     pub async fn next(&mut self) -> Option<Result<StreamEvent, Box<dyn Error>>> {
         let event_source = self.event_source.as_mut()?;
 
@@ -97,24 +121,24 @@ impl StreamedResponse {
     fn merge_event(&mut self, event: &StreamEvent) {
         match event {
             StreamEvent::MessageStart { message } => {
-                self.inner.id = message.id.clone();
-                self.inner.model = message.model.clone();
-                self.inner.role = message.role.clone();
-                self.inner.content = message.content.clone();
-                self.inner.stop_reason = message.stop_reason.clone();
-                self.inner.stop_sequence = message.stop_sequence.clone();
-                self.inner.usage = message.usage.clone();
+                self.response.id = message.id.clone();
+                self.response.model = message.model.clone();
+                self.response.role = message.role.clone();
+                self.response.content = message.content.clone();
+                self.response.stop_reason = message.stop_reason.clone();
+                self.response.stop_sequence = message.stop_sequence.clone();
+                self.response.usage = message.usage.clone();
             }
             StreamEvent::ContentBlockStart {
                 index,
                 content_block,
             } => {
-                if self.inner.content.len() <= *index {
-                    self.inner.content.push(content_block.clone());
+                if self.response.content.len() <= *index {
+                    self.response.content.push(content_block.clone());
                 }
             }
             StreamEvent::ContentBlockDelta { index, delta } => {
-                if let Some(block) = self.inner.content.get_mut(*index) {
+                if let Some(block) = self.response.content.get_mut(*index) {
                     match block {
                         Content::Text { text } => match delta {
                             ContentBlockDelta::TextDelta { text: delta_text } => {
@@ -127,21 +151,17 @@ impl StreamedResponse {
                 }
             }
             StreamEvent::MessageDelta { delta, usage } => {
-                self.inner.stop_reason = delta.stop_reason.clone();
-                self.inner.stop_sequence = delta.stop_sequence.clone();
-                self.inner.usage = usage.clone();
+                self.response.stop_reason = delta.stop_reason.clone();
+                self.response.stop_sequence = delta.stop_sequence.clone();
+                self.response.usage = usage.clone();
             }
             StreamEvent::ContentBlockStop { .. } | StreamEvent::Ping | StreamEvent::MessageStop => {
             }
         }
     }
 
-    pub fn is_complete(&self) -> bool {
-        self.inner.stop_reason.is_some()
-    }
-
     pub fn content_text(&self) -> String {
-        self.inner
+        self.response
             .content
             .iter()
             .filter_map(|block| {

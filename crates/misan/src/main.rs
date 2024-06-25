@@ -147,7 +147,7 @@ async fn handle_stream(
         Ok(mut streamed_response) => {
             info!("Stream started successfully");
             while (streamed_response.next().await).is_some() {}
-            println!("{}", streamed_response.inner.format_nicely());
+            println!("{}", streamed_response.response.format_nicely());
         }
         Err(e) => error!("Failed to start stream: {}", e),
     }
