@@ -1,8 +1,9 @@
 use misanthropy::{Anthropic, Content, MessagesRequest, Tool, DEFAULT_MODEL};
 use schemars::JsonSchema;
+use serde::{Deserialize, Serialize};
 
 /// Get the current stock price for a given ticker symbol.
-#[derive(JsonSchema)]
+#[derive(JsonSchema, Serialize, Deserialize, Debug)]
 struct GetStockPrice {
     /// The stock ticker symbol, e.g. AAPL for Apple Inc.
     ticker: String,
@@ -10,29 +11,39 @@ struct GetStockPrice {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create the Anthropic client
     let anthropic = Anthropic::from_env()?;
-
-    // Create the tool
     let get_stock_price_tool = Tool::new::<GetStockPrice>();
-
-    // Create the request
     let request = MessagesRequest::default()
         .with_model(DEFAULT_MODEL.to_string())
         .with_max_tokens(1000)
         .with_tool(get_stock_price_tool)
         .with_system("You are a helpful assistant that can look up stock prices.".to_string());
 
-    // Add the user's question
     let mut request = request;
     request.add_user(Content::text("What is Apple's stock price today?"));
 
-    // Send the request
+    println!("Making request...");
     let response = anthropic.messages(request).await?;
-
-    // Print the response
     println!("Claude's response:");
     println!("{}", response.format_nicely());
+
+    // Check for tool use in the response
+    for content in response.content {
+        if let Content::ToolUse(tool_use) = content {
+            println!("\nTool Use Detected:");
+            println!("Tool Name: {}", tool_use.name);
+            println!("Tool ID: {}", tool_use.id);
+
+            match serde_json::from_value::<GetStockPrice>(tool_use.input) {
+                Ok(get_stock_price) => {
+                    println!("{:#?}", get_stock_price.ticker);
+                }
+                Err(e) => {
+                    eprintln!("Failed to parse tool input: {}", e);
+                }
+            }
+        }
+    }
 
     Ok(())
 }

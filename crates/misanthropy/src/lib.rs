@@ -27,6 +27,50 @@ pub enum ToolChoice {
     SpecificTool(String),
 }
 
+/// Represents a tool that can be used by the AI model in a conversation.
+///
+/// A `Tool` defines a capability that the AI can use to perform specific tasks
+/// or retrieve information. It consists of a name, description, and an input schema
+/// that defines the structure of the data the tool expects.
+///
+/// The name and description are automatically derived from the input type used
+/// to create the tool, leveraging Rust's type system and documentation features.
+///
+/// # Fields
+///
+/// * `name`: The name of the tool, automatically derived from the input type's name.
+/// * `description`: A description of what the tool does, taken from the input type's doc comment.
+/// * `input_schema`: A `RootSchema` that defines the structure of the input the tool expects.
+///
+/// # Usage
+///
+/// To create a new `Tool`, define a struct that represents the tool's input,
+/// implement `JsonSchema` for it, and use the `Tool::new()` method:
+///
+/// ```
+/// use schemars::JsonSchema;
+/// use your_crate::Tool;
+///
+/// /// Get the current weather for a location.
+/// #[derive(JsonSchema)]
+/// struct GetWeather {
+///     /// The city and country, e.g., "London, UK"
+///     location: String,
+///     /// Temperature unit: "celsius" or "fahrenheit"
+///     unit: Option<String>,
+/// }
+///
+/// let weather_tool = Tool::new::<GetWeather>();
+/// ```
+///
+/// The resulting `Tool` will have its name set to "GetWeather", its description
+/// set to "Get the current weather for a location.", and its input schema derived
+/// from the `GetWeather` struct.
+///
+/// # Note
+///
+/// Ensure that the struct used to create the tool has a meaningful name and
+/// is well-documented, as this information is used directly in the created `Tool`.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Tool {
     pub name: String,
