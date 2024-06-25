@@ -1,10 +1,12 @@
+use std::io::Write;
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand};
 use env_logger::Builder;
 use log::{debug, error, info, LevelFilter};
 
-use misanthropy::{Anthropic, Content, MessagesRequest};
+use futures_util::StreamExt;
+use misanthropy::{Anthropic, Content, MessagesRequest, StreamEvent};
 
 fn setup_logger(verbose: u8, quiet: bool) {
     let mut builder = Builder::new();
@@ -53,6 +55,8 @@ struct Cli {
 enum Commands {
     /// Send a message to the API
     Message(MessageArgs),
+    /// Stream a message from the API
+    Stream(MessageArgs),
 }
 
 #[derive(Args)]
@@ -88,104 +92,171 @@ enum MessageContent {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
-    // Setup logger (assuming you have a setup_logger function)
     setup_logger(cli.verbose, cli.quiet);
 
-    let anthropic =
-        Anthropic::with_string_or_env(cli.api_key.as_deref().unwrap_or("")).map(|a| {})?;
+    let anthropic = Anthropic::with_string_or_env(cli.api_key.as_deref().unwrap_or(""))?;
 
     match &cli.command {
         Commands::Message(args) => {
-            info!("Running Message command");
-            let mut request = MessagesRequest::default()
-                .with_model(cli.model.clone())
-                .with_max_tokens(cli.max_tokens);
-
-            if let Some(system) = &args.system {
-                request = request.with_system(system);
-            }
-
-            if let Some(temp) = &args.temperature {
-                request = request.with_temperature(*temp);
-            }
-
-            // Collect all messages and images with their indices
-            let mut messages: Vec<(usize, MessageContent)> = Vec::new();
-
-            for (index, value) in std::env::args().enumerate() {
-                match value.as_str() {
-                    "-u" | "--user" => {
-                        if let Some(text) = std::env::args().nth(index + 1) {
-                            messages.push((index, MessageContent::UserText(text)));
-                        }
-                    }
-                    "-a" | "--assistant" => {
-                        if let Some(text) = std::env::args().nth(index + 1) {
-                            messages.push((index, MessageContent::AssistantText(text)));
-                        }
-                    }
-                    "--uimg" => {
-                        if let Some(path) = std::env::args().nth(index + 1) {
-                            messages.push((index, MessageContent::UserImage(PathBuf::from(path))));
-                        }
-                    }
-                    "--aimg" => {
-                        if let Some(path) = std::env::args().nth(index + 1) {
-                            messages
-                                .push((index, MessageContent::AssistantImage(PathBuf::from(path))));
-                        }
-                    }
-                    _ => {}
-                }
-            }
-
-            // Sort messages by their original order
-            messages.sort_by_key(|&(index, _)| index);
-
-            // Process messages in order
-            for (_, content) in messages {
-                match content {
-                    MessageContent::UserText(text) => request.add_user(Content::text(text)),
-                    MessageContent::AssistantText(text) => {
-                        request.add_assistant(Content::text(text))
-                    }
-                    MessageContent::UserImage(path) => match Content::image(&path) {
-                        Ok(content) => request.add_user(content),
-                        Err(e) => {
-                            error!("Failed to read user image file {}: {}", path.display(), e);
-                            return Err(e.into());
-                        }
-                    },
-                    MessageContent::AssistantImage(path) => match Content::image(&path) {
-                        Ok(content) => request.add_assistant(content),
-                        Err(e) => {
-                            error!(
-                                "Failed to read assistant image file {}: {}",
-                                path.display(),
-                                e
-                            );
-                            return Err(e.into());
-                        }
-                    },
-                }
-            }
-
-            debug!("Constructed request: {:#?}", request);
-
-            match anthropic.messages(request).await {
-                Ok(response) => {
-                    info!("Message sent successfully");
-                    println!("{}", response.format_nicely());
-
-                    // Print full response if verbosity is high enough
-                    if cli.verbose >= 2 {
-                        debug!("Full response: {:#?}", response);
-                    }
-                }
-                Err(e) => error!("Failed to send message: {}", e),
-            }
+            handle_message(&anthropic, args, &cli).await?;
+        }
+        Commands::Stream(args) => {
+            handle_stream(&anthropic, args, &cli).await?;
         }
     }
 
     Ok(())
+}
+
+async fn handle_message(
+    anthropic: &Anthropic,
+    args: &MessageArgs,
+    cli: &Cli,
+) -> Result<(), Box<dyn std::error::Error>> {
+    info!("Running Message command");
+    let request = build_request(args, cli)?;
+
+    debug!("Constructed request: {:#?}", request);
+
+    match anthropic.messages(request).await {
+        Ok(response) => {
+            info!("Message sent successfully");
+            println!("{}", response.format_nicely());
+
+            if cli.verbose >= 2 {
+                debug!("Full response: {:#?}", response);
+            }
+        }
+        Err(e) => error!("Failed to send message: {}", e),
+    }
+
+    Ok(())
+}
+
+async fn handle_stream(
+    anthropic: &Anthropic,
+    args: &MessageArgs,
+    cli: &Cli,
+) -> Result<(), Box<dyn std::error::Error>> {
+    info!("Running Stream command");
+    let request = build_request(args, cli)?;
+
+    debug!("Constructed request: {:#?}", request);
+
+    match anthropic.messages_stream(request) {
+        Ok(mut streamed_message) => {
+            info!("Stream started successfully");
+            while let Some(result) = streamed_message.next().await {
+                match result {
+                    Ok(event) => match event {
+                        StreamEvent::MessageStart(_) => info!("Message started"),
+                        StreamEvent::ContentBlockStart { index, .. } => {
+                            debug!("Content block {} started", index)
+                        }
+                        StreamEvent::ContentBlockDelta { index, delta } => {
+                            if cli.verbose >= 2 {
+                                debug!("Content block {} updated: {:?}", index, delta);
+                            }
+                            if let Content::Text { text } = delta {
+                                print!("{}", text);
+                                std::io::stdout().flush()?;
+                            }
+                        }
+                        StreamEvent::ContentBlockStop { index } => {
+                            debug!("Content block {} finished", index)
+                        }
+                        StreamEvent::MessageDelta(_) => debug!("Message updated"),
+                        StreamEvent::MessageStop(_) => {
+                            println!("\nMessage finished");
+                            if let Some(final_message) = streamed_message.current_message() {
+                                println!("\nFinal message:");
+                                println!("{}", final_message.format_nicely());
+                            }
+                        }
+                    },
+                    Err(e) => error!("Stream error: {}", e),
+                }
+            }
+        }
+        Err(e) => error!("Failed to start stream: {}", e),
+    }
+
+    Ok(())
+}
+
+fn build_request(
+    args: &MessageArgs,
+    cli: &Cli,
+) -> Result<MessagesRequest, Box<dyn std::error::Error>> {
+    let mut request = MessagesRequest::default()
+        .with_model(cli.model.clone())
+        .with_max_tokens(cli.max_tokens);
+
+    if let Some(system) = &args.system {
+        request = request.with_system(system);
+    }
+
+    if let Some(temp) = &args.temperature {
+        request = request.with_temperature(*temp);
+    }
+
+    // Collect all messages and images with their indices
+    let mut messages: Vec<(usize, MessageContent)> = Vec::new();
+
+    for (index, value) in std::env::args().enumerate() {
+        match value.as_str() {
+            "-u" | "--user" => {
+                if let Some(text) = std::env::args().nth(index + 1) {
+                    messages.push((index, MessageContent::UserText(text)));
+                }
+            }
+            "-a" | "--assistant" => {
+                if let Some(text) = std::env::args().nth(index + 1) {
+                    messages.push((index, MessageContent::AssistantText(text)));
+                }
+            }
+            "--uimg" => {
+                if let Some(path) = std::env::args().nth(index + 1) {
+                    messages.push((index, MessageContent::UserImage(PathBuf::from(path))));
+                }
+            }
+            "--aimg" => {
+                if let Some(path) = std::env::args().nth(index + 1) {
+                    messages.push((index, MessageContent::AssistantImage(PathBuf::from(path))));
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // Sort messages by their original order
+    messages.sort_by_key(|&(index, _)| index);
+
+    // Process messages in order
+    for (_, content) in messages {
+        match content {
+            MessageContent::UserText(text) => request.add_user(Content::text(text)),
+            MessageContent::AssistantText(text) => request.add_assistant(Content::text(text)),
+            MessageContent::UserImage(path) => match Content::image(&path) {
+                Ok(content) => request.add_user(content),
+                Err(e) => {
+                    error!("Failed to read user image file {}: {}", path.display(), e);
+                    return Err(e.into());
+                }
+            },
+            MessageContent::AssistantImage(path) => match Content::image(&path) {
+                Ok(content) => request.add_assistant(content),
+                Err(e) => {
+                    error!(
+                        "Failed to read assistant image file {}: {}",
+                        path.display(),
+                        e
+                    );
+                    return Err(e.into());
+                }
+            },
+        }
+    }
+
+    Ok(request)
 }

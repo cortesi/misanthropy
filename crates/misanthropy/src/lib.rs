@@ -2,8 +2,10 @@
 use std::{env, fs, path::Path};
 
 use base64::prelude::*;
+use futures_util::StreamExt;
 use log::trace;
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
+use reqwest_eventsource::{Event, EventSource};
 use serde::{Deserialize, Serialize};
 
 pub const DEFAULT_MODEL: &str = "claude-3-opus-20240229";
@@ -11,6 +13,80 @@ pub const DEFAULT_MAX_TOKENS: u32 = 1024;
 pub const ANTHROPIC_API_KEY_ENV: &str = "ANTHROPIC_API_KEY";
 pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 const DEFAULT_API_DOMAIN: &str = "api.anthropic.com";
+
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum StreamEvent {
+    MessageStart(Message),
+    ContentBlockStart {
+        index: usize,
+        content_block: Content,
+    },
+    ContentBlockDelta {
+        index: usize,
+        delta: Content,
+    },
+    ContentBlockStop {
+        index: usize,
+    },
+    MessageDelta(Message),
+    MessageStop(Message),
+}
+
+pub struct StreamedMessage {
+    event_source: EventSource,
+    current_message: Option<Message>,
+}
+
+impl StreamedMessage {
+    pub async fn next(&mut self) -> Option<Result<StreamEvent, Box<dyn std::error::Error>>> {
+        while let Some(event) = self.event_source.next().await {
+            match event {
+                Ok(Event::Open) => {
+                    // Connection opened, continue to next event
+                    continue;
+                }
+                Ok(Event::Message(message)) => {
+                    if message.data == "[DONE]" {
+                        return None; // Stream finished
+                    }
+                    // Parse the message data into a StreamEvent
+                    match serde_json::from_str::<StreamEvent>(&message.data) {
+                        Ok(stream_event) => {
+                            // Update the current_message based on the event
+                            match &stream_event {
+                                StreamEvent::MessageStart(msg) => {
+                                    self.current_message = Some(msg.clone());
+                                }
+                                StreamEvent::MessageDelta(delta) => {
+                                    if let Some(ref mut current) = self.current_message {
+                                        // Apply delta updates to the current message
+                                        // This is a simplified example and might need more detailed implementation
+                                        current.merge(delta);
+                                    }
+                                }
+                                StreamEvent::MessageStop(final_msg) => {
+                                    self.current_message = Some(final_msg.clone());
+                                }
+                                _ => {} // Other events don't update the current_message
+                            }
+                            return Some(Ok(stream_event));
+                        }
+                        Err(e) => return Some(Err(Box::new(e) as Box<dyn std::error::Error>)),
+                    }
+                }
+                Err(e) => {
+                    return Some(Err(Box::new(e) as Box<dyn std::error::Error>));
+                }
+            }
+        }
+        None
+    }
+
+    pub fn current_message(&self) -> Option<&Message> {
+        self.current_message.as_ref()
+    }
+}
 
 #[derive(Debug, Deserialize)]
 pub struct ApiErrorResponse {
@@ -113,7 +189,7 @@ impl MessagesResponse {
 }
 
 /// A piece of content in a message, either text or an image.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum Content {
     Text { text: String },
@@ -152,7 +228,7 @@ impl Content {
 }
 
 /// Metadata for an image in a message.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Source {
     #[serde(rename = "type")]
     pub source_type: String,
@@ -235,7 +311,7 @@ impl MessagesRequest {
 }
 
 /// A single message in a conversation, with a role and content.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Message {
     pub role: Role,
     pub content: Vec<Content>,
@@ -247,6 +323,34 @@ impl Message {
             role,
             content: Vec::new(),
         }
+    }
+
+    fn merge(&mut self, delta: &Message) {
+        // Implement merge logic here
+        // This is a simplified example and might need more detailed implementation
+        // Add more fields as necessary
+    }
+
+    pub fn format_nicely(&self) -> String {
+        let role_prefix = match self.role {
+            Role::User => "User: ",
+            Role::Assistant => "Assistant: ",
+        };
+
+        let content_strings: Vec<String> = self
+            .content
+            .iter()
+            .map(|content| match content {
+                Content::Text { text } => text.clone(),
+                Content::Image { source } => {
+                    format!("[Image: {} {}]", source.source_type, source.media_type)
+                }
+            })
+            .collect();
+
+        let formatted_content = content_strings.join("\n");
+
+        format!("{}{}", role_prefix, formatted_content)
     }
 }
 
@@ -279,6 +383,34 @@ impl Anthropic {
         } else {
             Self::from_env()
         }
+    }
+
+    pub fn messages_stream(
+        &self,
+        request: MessagesRequest,
+    ) -> Result<StreamedMessage, Box<dyn std::error::Error>> {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-api-key", HeaderValue::from_str(&self.api_key)?);
+        headers.insert(
+            "anthropic-version",
+            HeaderValue::from_static(ANTHROPIC_API_VERSION),
+        );
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+
+        let url = format!("{}/v1/messages", self.base_url);
+
+        let event_source = EventSource::new(
+            reqwest::Client::new()
+                .post(&url)
+                .headers(headers)
+                .json(&request)
+                .query(&[("stream", "true")]),
+        )?;
+
+        Ok(StreamedMessage {
+            event_source,
+            current_message: None,
+        })
     }
 
     /// Sends a message request to the Anthropic API and returns the response.

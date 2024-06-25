@@ -660,6 +660,7 @@ version = "0.0.1"
 dependencies = [
  "clap",
  "env_logger",
+ "futures-util",
  "log",
  "misanthropy",
  "tokio",
@@ -670,10 +671,12 @@ name = "misanthropy"
 version = "0.0.1"
 dependencies = [
  "base64",
+ "futures-util",
  "log",
  "reqwest",
  "reqwest-eventsource",
  "serde",
+ "serde_json",
  "tokio",
 ]
 
