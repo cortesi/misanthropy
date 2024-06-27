@@ -88,7 +88,7 @@ pub enum ToolChoice {
 ///
 /// Ensure that the struct used to create the tool has a meaningful name and
 /// is well-documented, as this information is used directly in the created `Tool`.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Tool {
     /// The name of the tool.
     pub name: String,
@@ -558,7 +558,7 @@ fn is_default_tool_choice(choice: &ToolChoice) -> bool {
 }
 
 /// A request to the Anthropic API for message generation.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MessagesRequest {
     /// The AI model to use for generating the response.
     pub model: String,
