@@ -23,27 +23,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     request.add_user(Content::text("What is Apple's stock price today?"));
 
     println!("Making request...");
-    let response = anthropic.messages(request).await?;
+    let response = anthropic.messages(request.clone()).await?;
     println!("Claude's response:");
     println!("{}", response.format_nicely());
 
     // Check for tool use in the response
+    println!("------------------------------------");
     for content in response.content {
+        request.add_assistant(content.clone());
         if let Content::ToolUse(tool_use) = content {
-            println!("\nTool Use Detected:");
+            println!("Tool Use Detected:");
             println!("Tool Name: {}", tool_use.name);
             println!("Tool ID: {}", tool_use.id);
 
-            match serde_json::from_value::<GetStockPrice>(tool_use.input) {
+            match serde_json::from_value::<GetStockPrice>(tool_use.input.clone()) {
                 Ok(get_stock_price) => {
                     println!("{:#?}", get_stock_price.ticker);
+                    request.add_user(Content::tool_result(
+                        &tool_use,
+                        "The stock price is $150.00",
+                    ));
                 }
                 Err(e) => {
                     eprintln!("Failed to parse tool input: {}", e);
+                    return Ok(());
                 }
             }
         }
     }
+
+    // Continue the conversation and get the next response
+    println!("------------------------------------");
+    println!("Responded to tool, making request...");
+    let response = anthropic.messages(request).await?;
+    println!("Claude's response:");
+    println!("{}", response.format_nicely());
 
     Ok(())
 }

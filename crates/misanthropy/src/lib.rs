@@ -294,7 +294,12 @@ impl StreamedResponse {
                             ContentBlockDelta::InputJsonDelta { .. } => {}
                         },
                         Content::Image { .. } => {}
-                        Content::ToolUse { .. } => {}
+                        Content::ToolUse { .. } => {
+                            unimplemented!(
+                                "Partial updates for ToolUse blocks are not supported yet"
+                            );
+                        }
+                        Content::ToolResult { .. } => {}
                     }
                 }
             }
@@ -451,16 +456,30 @@ impl MessagesResponse {
                 }
                 Content::ToolUse(tool_use) => {
                     output.push_str(&format!(
-                        "{}: [Tool: {} {}]\n",
+                        "{}: [Tool({}): {} {}]\n",
                         if self.role == Role::User {
                             "user"
                         } else {
                             "assistant"
                         },
+                        tool_use.id,
                         tool_use.name,
                         tool_use.input
                     ));
                     has_user_messages = true; // Always show roles if there are tools
+                }
+                Content::ToolResult(tool_result) => {
+                    output.push_str(&format!(
+                        "{}: [Tool Result({}): {}]\n",
+                        if self.role == Role::User {
+                            "user"
+                        } else {
+                            "assistant"
+                        },
+                        tool_result.tool_use_id,
+                        tool_result.content
+                    ));
+                    has_user_messages = true; // Always show roles if there are tool results
                 }
             }
         }
@@ -479,6 +498,7 @@ impl MessagesResponse {
 }
 
 /// A tool used by the AI model during a conversation.
+/// Should be supplied in an assistant message.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ToolUse {
     /// Unique identifier for this tool use instance.
@@ -487,6 +507,16 @@ pub struct ToolUse {
     pub name: String,
     /// The input provided to the tool, in a flexible JSON format.
     pub input: Value,
+}
+
+/// A response to a tool used by the AI model during a conversation.
+/// Should be supplied in a user message.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ToolResult {
+    /// The unique identifier of the tool use instance.
+    pub tool_use_id: String,
+    /// The output of the tool. Arbitrary format, but should be intelligible to the assistant.
+    pub content: String,
 }
 
 /// A piece of content in a message, either text or an image.
@@ -499,13 +529,18 @@ pub enum Content {
     Image { source: Source },
     /// Details of a tool used by the AI.
     ToolUse(ToolUse),
+    /// The result to a tool used by the AI.
+    ToolResult(ToolResult),
 }
 
 impl Content {
+    /// Creates a new text content block.
     pub fn text(text: impl Into<String>) -> Self {
         Content::Text { text: text.into() }
     }
 
+    /// Creates a new image content block from a file path by reading the image
+    /// data and encoding it as Base64.
     pub fn image(path: impl AsRef<Path>) -> std::io::Result<Self> {
         let path = path.as_ref();
         let image_data = fs::read(path)?;
@@ -517,6 +552,14 @@ impl Content {
                 media_type: Self::detect_media_type(path),
                 data: base64_image,
             },
+        })
+    }
+
+    /// Creates a tool result block given a tool use and some content.
+    pub fn tool_result(tool_use: &ToolUse, content: impl Into<String>) -> Self {
+        Content::ToolResult(ToolResult {
+            tool_use_id: tool_use.id.clone(),
+            content: content.into(),
         })
     }
 
@@ -680,7 +723,16 @@ impl Message {
                     format!("[Image: {} {}]", source.source_type, source.media_type)
                 }
                 Content::ToolUse(tool_use) => {
-                    format!("[Tool: {} {}]", tool_use.name, tool_use.input)
+                    format!(
+                        "[Tool({}): {} {}]",
+                        tool_use.id, tool_use.name, tool_use.input
+                    )
+                }
+                Content::ToolResult(tool_result) => {
+                    format!(
+                        "[Tool Result({}): {}]",
+                        tool_result.tool_use_id, tool_result.content
+                    )
                 }
             })
             .collect();
