@@ -13,17 +13,16 @@ struct GetStockPrice {
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let anthropic = Anthropic::from_env()?;
     let get_stock_price_tool = Tool::new::<GetStockPrice>();
-    let request = MessagesRequest::default()
+    let mut request = MessagesRequest::default()
         .with_model(DEFAULT_MODEL.to_string())
         .with_max_tokens(1000)
         .with_tool(get_stock_price_tool)
         .with_system("You are a helpful assistant that can look up stock prices.".to_string());
 
-    let mut request = request;
     request.add_user(Content::text("What is Apple's stock price today?"));
 
     println!("Making request...");
-    let response = anthropic.messages(request.clone()).await?;
+    let response = anthropic.messages(&request).await?;
     println!("Claude's response:");
     println!("{}", response.format_nicely());
 
@@ -55,7 +54,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Continue the conversation and get the next response
     println!("------------------------------------");
     println!("Responded to tool, making request...");
-    let response = anthropic.messages(request).await?;
+    let response = anthropic.messages(&request).await?;
     println!("Claude's response:");
     println!("{}", response.format_nicely());
 

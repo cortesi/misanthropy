@@ -14,7 +14,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Sending request: {}", msg);
     // Send the request and get the response
-    let response = client.messages(request).await?;
+    let response = client.messages(&request).await?;
 
     // Print the formatted response
     println!("Claude's response:");

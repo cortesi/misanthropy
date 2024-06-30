@@ -64,7 +64,7 @@ pub enum ToolChoice {
 /// To create a new `Tool`, define a struct that represents the tool's input,
 /// implement `JsonSchema` for it, and use the `Tool::new()` method:
 ///
-/// ```
+/// ```ignore
 /// use schemars::JsonSchema;
 /// use your_crate::Tool;
 ///
@@ -780,9 +780,15 @@ impl Anthropic {
 
     /// Sends a message request to the Anthropic API and returns a streaming response.
     /// Allows processing of incremental updates as they arrive from the API.
-    pub fn messages_stream(&self, request: MessagesRequest) -> Result<StreamedResponse> {
+    ///
+    /// It is an error to pass a `MessagesRequest` with `stream` set to `false`.
+    pub fn messages_stream(&self, request: &MessagesRequest) -> Result<StreamedResponse> {
+        if !request.stream {
+            return Err(Error::BadRequest(
+                "Streaming requests must have stream set to true".to_string(),
+            ));
+        }
         let mut headers = HeaderMap::new();
-        let request = request.with_stream(true);
         headers.insert("x-api-key", HeaderValue::from_str(&self.api_key)?);
         headers.insert(
             "anthropic-version",
@@ -805,7 +811,7 @@ impl Anthropic {
 
     /// Sends a message request to the Anthropic API and returns the response.
     /// Uses client defaults for model and max_tokens if not specified in the request.
-    pub async fn messages(&self, request: MessagesRequest) -> Result<MessagesResponse> {
+    pub async fn messages(&self, request: &MessagesRequest) -> Result<MessagesResponse> {
         let client = reqwest::Client::new();
 
         let mut headers = HeaderMap::new();

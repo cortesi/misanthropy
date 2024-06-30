@@ -101,7 +101,7 @@ async fn handle_message(
 
     debug!("Constructed request: {:#?}", request);
 
-    match anthropic.messages(request).await {
+    match anthropic.messages(&request).await {
         Ok(response) => {
             info!("Message sent successfully");
             println!("{}", response.format_nicely());
@@ -126,7 +126,7 @@ async fn handle_stream(
 
     debug!("Constructed request: {:#?}", request);
 
-    match anthropic.messages_stream(request) {
+    match anthropic.messages_stream(&request) {
         Ok(mut streamed_response) => {
             info!("Stream started successfully");
             while (streamed_response.next().await).is_some() {}
