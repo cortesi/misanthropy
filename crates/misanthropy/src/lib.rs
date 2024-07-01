@@ -353,12 +353,13 @@ pub enum ApiErrorType {
 }
 
 /// The top-level error structure returned by the Anthropic API.
-/// Includes the error type and a nested ApiError with more details.
+/// Includes a nested ApiError with more details.
 #[derive(Debug, Deserialize)]
 pub struct ApiErrorResponse {
-    /// The type of error that occurred.
+    /// The type of the response; will always be "error".
+    /// See `error.error_type` for more specific information.
     #[serde(rename = "type")]
-    pub error_type: ApiErrorType,
+    pub error_type: String,
     /// Detailed information about the error.
     pub error: ApiError,
 }
@@ -368,7 +369,7 @@ pub struct ApiErrorResponse {
 pub struct ApiError {
     /// A string identifier for the error type.
     #[serde(rename = "type")]
-    pub error_type: String,
+    pub error_type: ApiErrorType,
     /// A human-readable description of the error.
     pub message: String,
 }
