@@ -41,7 +41,7 @@ pub enum Error {
 
 impl From<ApiErrorResponse> for Error {
     fn from(error: ApiErrorResponse) -> Self {
-        match error.error_type {
+        match error.error.error_type {
             ApiErrorType::InvalidRequestError => Error::BadRequest(error.error.message),
             ApiErrorType::AuthenticationError => Error::Unauthorized(error.error.message),
             ApiErrorType::PermissionError => Error::Unauthorized(error.error.message),
