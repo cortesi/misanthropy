@@ -122,7 +122,7 @@ async fn handle_stream(
     cli: &Cli,
 ) -> Result<(), Box<dyn std::error::Error>> {
     info!("Running Stream command");
-    let request = build_request(args, cli)?;
+    let request = build_request(args, cli)?.with_stream(true);
 
     debug!("Constructed request: {:#?}", request);
 
