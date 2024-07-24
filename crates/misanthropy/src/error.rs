@@ -17,8 +17,14 @@ pub enum Error {
     #[error("HTTP request failed: {0}")]
     HttpError(#[from] reqwest::Error),
 
-    #[error("Rate limit exceeded")]
-    RateLimitExceeded,
+    #[error("Rate limit exceeded: {0}")]
+    RateLimitExceeded(String),
+
+    #[error("API overloaded: {0}")]
+    ApiOverloaded(String),
+
+    #[error("Unknown error: {0}")]
+    UnknownError(String),
 
     #[error("Unauthorized: {0}")]
     Unauthorized(String),
@@ -45,19 +51,13 @@ impl From<ApiErrorResponse> for Error {
             ApiErrorType::InvalidRequestError => Error::BadRequest(error.error.message),
             ApiErrorType::AuthenticationError => Error::Unauthorized(error.error.message),
             ApiErrorType::PermissionError => Error::Unauthorized(error.error.message),
-            ApiErrorType::RateLimitError => Error::RateLimitExceeded,
+            ApiErrorType::RateLimitError => Error::RateLimitExceeded(error.error.message),
             ApiErrorType::NotFoundError => {
-                Error::ApiError(format!("Not found: {}", error.error.message))
+                Error::UnknownError(format!("Not found: {}", error.error.message))
             }
-            ApiErrorType::ApiError => {
-                Error::ApiError(format!("API error: {}", error.error.message))
-            }
-            ApiErrorType::OverloadedError => {
-                Error::ApiError(format!("API overloaded: {}", error.error.message))
-            }
-            ApiErrorType::Other => {
-                Error::ApiError(format!("Unknown error: {}", error.error.message))
-            }
+            ApiErrorType::ApiError => Error::ApiError(error.error.message),
+            ApiErrorType::OverloadedError => Error::ApiOverloaded(error.error.message),
+            ApiErrorType::Other => Error::UnknownError(error.error.message),
         }
     }
 }
