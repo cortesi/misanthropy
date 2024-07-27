@@ -25,6 +25,9 @@ pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 
 const DEFAULT_API_DOMAIN: &str = "api.anthropic.com";
 
+/// Beta header value for increased output tokens
+pub const ANTHROPIC_BETA_HEADER_VALUE: &str = "max-tokens-3-5-sonnet-2024-07-15";
+
 mod error;
 
 pub use error::*;
@@ -793,6 +796,7 @@ impl Message {
 pub struct Anthropic {
     api_key: String,
     base_url: String,
+    use_beta: bool,
 }
 
 impl Anthropic {
@@ -802,7 +806,15 @@ impl Anthropic {
         Self {
             api_key,
             base_url: format!("https://{}", DEFAULT_API_DOMAIN),
+            use_beta: true,
         }
+    }
+
+    /// Enables or disables the beta feature for increased output tokens.
+    /// See: https://docs.anthropic.com/en/release-notes/api#july-15th-2024
+    pub fn with_beta(mut self, use_beta: bool) -> Self {
+        self.use_beta = use_beta;
+        self
     }
 
     /// Creates an Anthropic client using the API key from the environment.
@@ -822,6 +834,26 @@ impl Anthropic {
         }
     }
 
+    /// Creates the headers for API requests, including the beta header if enabled.
+    fn create_headers(&self) -> Result<HeaderMap> {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-api-key", HeaderValue::from_str(&self.api_key)?);
+        headers.insert(
+            "anthropic-version",
+            HeaderValue::from_static(ANTHROPIC_API_VERSION),
+        );
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+
+        if self.use_beta {
+            headers.insert(
+                "anthropic-beta",
+                HeaderValue::from_static(ANTHROPIC_BETA_HEADER_VALUE),
+            );
+        }
+
+        Ok(headers)
+    }
+
     /// Sends a message request to the Anthropic API and returns a streaming response.
     /// Allows processing of incremental updates as they arrive from the API.
     ///
@@ -832,20 +864,10 @@ impl Anthropic {
                 "Streaming requests must have stream set to true".to_string(),
             ));
         }
-        let mut headers = HeaderMap::new();
-        headers.insert("x-api-key", HeaderValue::from_str(&self.api_key)?);
-        headers.insert(
-            "anthropic-version",
-            HeaderValue::from_static(ANTHROPIC_API_VERSION),
-        );
-        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-
-        let url = format!("{}/v1/messages", self.base_url);
-
         let event_source = EventSource::new(
             reqwest::Client::new()
-                .post(&url)
-                .headers(headers)
+                .post(format!("{}/v1/messages", self.base_url))
+                .headers(self.create_headers()?)
                 .json(&request),
         )
         .map_err(|e| Error::EventSourceError(e.to_string()))?;
@@ -857,41 +879,20 @@ impl Anthropic {
     /// Uses client defaults for model and max_tokens if not specified in the request.
     pub async fn messages(&self, request: &MessagesRequest) -> Result<MessagesResponse> {
         let client = reqwest::Client::new();
-
-        let mut headers = HeaderMap::new();
-        headers.insert("x-api-key", HeaderValue::from_str(&self.api_key)?);
-        headers.insert(
-            "anthropic-version",
-            HeaderValue::from_static(ANTHROPIC_API_VERSION),
-        );
-        headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-        let url = format!("{}/v1/messages", self.base_url);
-        trace!("Full request:");
-        trace!("URL: {}", url);
-        trace!("Headers: {:#?}", headers);
-        trace!("Body: {:#?}", request);
-
         let response = client
-            .post(url)
-            .headers(headers)
+            .post(format!("{}/v1/messages", self.base_url))
+            .headers(self.create_headers()?)
             .json(&request)
             .send()
             .await?;
 
         let status = response.status();
 
-        // Debug print the full response, including status and headers
-        trace!("Full response:");
-        trace!("Status: {}", status);
-        trace!("Headers: {:#?}", response.headers());
-
         if status.is_success() {
             let messages_response: MessagesResponse = response.json().await?;
-            trace!("Body: {:#?}", messages_response);
             Ok(messages_response)
         } else {
             let error_response: ApiErrorResponse = response.json().await?;
-            trace!("Error: {:#?}", error_response);
             Err(error_response.into())
         }
     }
