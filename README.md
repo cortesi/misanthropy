@@ -4,7 +4,8 @@
 [![docs.rs](https://img.shields.io/docsrs/misanthropy)](https://docs.rs/misanthropy)
 [![Rust](https://img.shields.io/badge/rust-1.75%2B-blue.svg?logo=rust)](https://www.rust-lang.org)
 
-Misanthropy is a Rust project for interacting with the Anthropic API, providing easy access to Claude and other Anthropic models. It consists of two main components:
+Misanthropy is set of Rust bindings for Anthropic API, providing easy access to
+Claude and other Anthropic models. It consists of two main components:
 
 1. `misanthropy`: A Rust client library for the Anthropic API
 2. `misan`: A command-line interface (CLI) tool for quick interactions with the API

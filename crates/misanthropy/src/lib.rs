@@ -624,6 +624,9 @@ pub struct MessagesRequest {
     /// How the AI should choose which tool to use, if any.
     #[serde(skip_serializing_if = "is_default_tool_choice")]
     pub tool_choice: ToolChoice,
+    /// Optional list of stop sequences to end generation.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub stop_sequences: Vec<String>,
 }
 
 impl Default for MessagesRequest {
@@ -637,6 +640,7 @@ impl Default for MessagesRequest {
             stream: false,
             tools: Vec::new(),
             tool_choice: ToolChoice::default(),
+            stop_sequences: Vec::new(),
         }
     }
 }
@@ -670,6 +674,15 @@ impl MessagesRequest {
     pub fn with_system(mut self, system: impl Into<String>) -> Self {
         self.system = Some(system.into());
         self
+    }
+
+    pub fn with_stop_sequences(mut self, stop_sequences: Vec<String>) -> Self {
+        self.stop_sequences = stop_sequences;
+        self
+    }
+
+    pub fn add_stop_sequence(&mut self, stop_sequence: String) {
+        self.stop_sequences.push(stop_sequence);
     }
 
     pub fn add_user(&mut self, content: Content) {

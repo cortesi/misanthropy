@@ -81,6 +81,19 @@ struct MessageArgs {
 
     #[arg(long, help = "Set the temperature for the model's output")]
     temperature: Option<f32>,
+
+    #[arg(long = "stop", help = "Set stop sequences for the model")]
+    stop_sequences: Vec<String>,
+}
+
+impl MessageArgs {
+    fn is_empty(&self) -> bool {
+        self.user_messages.is_empty()
+            && self.assistant_messages.is_empty()
+            && self.user_images.is_empty()
+            && self.assistant_images.is_empty()
+            && self.system.is_none()
+    }
 }
 
 #[derive(Clone)]
@@ -96,6 +109,10 @@ async fn handle_message(
     args: &MessageArgs,
     cli: &Cli,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    if args.is_empty() {
+        return Err("No message content provided. Please provide at least one user or assistant message, or an image.".into());
+    }
+
     info!("Running Message command");
     let request = build_request(args, cli)?;
 
@@ -121,6 +138,10 @@ async fn handle_stream(
     args: &MessageArgs,
     cli: &Cli,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    if args.is_empty() {
+        return Err("No message content provided. Please provide at least one user or assistant message, or an image.".into());
+    }
+
     info!("Running Stream command");
     let request = build_request(args, cli)?.with_stream(true);
 
@@ -152,6 +173,10 @@ fn build_request(
 
     if let Some(temp) = &args.temperature {
         request = request.with_temperature(*temp);
+    }
+
+    if !args.stop_sequences.is_empty() {
+        request = request.with_stop_sequences(args.stop_sequences.clone());
     }
 
     // Collect all messages and images with their indices
