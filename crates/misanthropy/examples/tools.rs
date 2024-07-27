@@ -24,7 +24,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Making request...");
     let response = anthropic.messages(&request).await?;
     println!("Claude's response:");
-    println!("{}", response.format_nicely());
+    println!("{}", response.format_content());
 
     // Check for tool use in the response
     println!("------------------------------------");
@@ -56,7 +56,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Responded to tool, making request...");
     let response = anthropic.messages(&request).await?;
     println!("Claude's response:");
-    println!("{}", response.format_nicely());
+    println!("{}", response.format_content());
 
     Ok(())
 }

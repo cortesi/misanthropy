@@ -7,7 +7,6 @@ use std::{
 use clap::{Args, Parser, Subcommand};
 use env_logger::Builder;
 use log::{debug, error, info, LevelFilter};
-use serde_json;
 
 use misanthropy::{
     Anthropic, Content, MessagesRequest, ANTHROPIC_API_KEY_ENV, ANTHROPIC_API_VERSION,

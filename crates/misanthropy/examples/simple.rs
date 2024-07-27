@@ -18,7 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Print the formatted response
     println!("Claude's response:");
-    println!("{}", response.format_nicely());
+    println!("{}", response.format_content());
 
     Ok(())
 }
