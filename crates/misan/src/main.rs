@@ -5,6 +5,7 @@ use std::{
 };
 
 use clap::{Args, Parser, Subcommand};
+use colored::*;
 use env_logger::Builder;
 use log::{debug, error, info, LevelFilter};
 
@@ -133,7 +134,7 @@ async fn handle_chat(
     let mut request = MessagesRequest::default()
         .with_model(cli.model.clone())
         .with_max_tokens(cli.max_tokens)
-        .with_stream(true); // Enable streaming
+        .with_stream(true);
 
     if let Some(system) = &args.system {
         request = request.with_system(system);
@@ -150,7 +151,7 @@ async fn handle_chat(
     println!("Starting chat session. Type 'exit' to end the conversation.");
 
     loop {
-        print!("You: ");
+        print!("{} ", "You:".green().bold());
         io::stdout().flush()?;
 
         let mut user_input = String::new();
@@ -171,7 +172,7 @@ async fn handle_chat(
 
         match anthropic.messages_stream(&request) {
             Ok(mut streamed_response) => {
-                print!("AI: ");
+                print!("{} ", "AI:".blue().bold());
                 io::stdout().flush()?;
 
                 let mut response_content = String::new();
@@ -196,7 +197,8 @@ async fn handle_chat(
                             }
                         }
                         Err(e) => {
-                            error!("Error in stream: {}", e);
+                            eprintln!("{}", "Error in stream:".red().bold());
+                            eprintln!("{}", e);
                             println!("\nAn error occurred. Please try again.");
                             break;
                         }
@@ -207,7 +209,8 @@ async fn handle_chat(
                 request.merge_streamed_response(&streamed_response);
             }
             Err(e) => {
-                error!("Failed to start stream: {}", e);
+                eprintln!("{}", "Failed to start stream:".red().bold());
+                eprintln!("{}", e);
                 println!("An error occurred. Please try again.");
             }
         }
