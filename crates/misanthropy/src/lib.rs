@@ -428,7 +428,7 @@ pub struct MessagesResponse {
 }
 
 impl MessagesResponse {
-    pub fn format_nicely(&self) -> String {
+    pub fn format_content(&self) -> String {
         let mut output = String::new();
         let mut has_user_messages = false;
 
@@ -646,6 +646,21 @@ impl Default for MessagesRequest {
 }
 
 impl MessagesRequest {
+    /// Merges a MessagesResponse into the current MessagesRequest.
+    ///
+    /// Adds the entire content of the given response as a new assistant message
+    /// to the conversation history, preserving all content types.
+    ///
+    /// Useful for maintaining context in ongoing conversations by incorporating
+    /// AI responses into the history for subsequent requests.
+    pub fn merge_response(&mut self, response: &MessagesResponse) {
+        let new_message = Message {
+            role: Role::Assistant,
+            content: response.content.clone(),
+        };
+        self.messages.push(new_message);
+    }
+
     pub fn with_tool(mut self, tool: Tool) -> Self {
         self.tools.push(tool);
         self
@@ -722,7 +737,7 @@ impl Message {
         }
     }
 
-    pub fn format_nicely(&self) -> String {
+    pub fn format_content(&self) -> String {
         let role_prefix = match self.role {
             Role::User => "User: ",
             Role::Assistant => "Assistant: ",

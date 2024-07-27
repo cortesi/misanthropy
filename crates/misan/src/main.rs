@@ -1,4 +1,8 @@
-use std::{env, path::PathBuf};
+use std::{
+    env,
+    io::{self, Write},
+    path::PathBuf,
+};
 
 use clap::{Args, Parser, Subcommand};
 use env_logger::Builder;
@@ -58,12 +62,26 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Start an interactive chat session
+    Chat(ChatArgs),
     /// Send a message to the API
     Message(MessageArgs),
     /// Stream a message from the API
     Stream(MessageArgs),
     /// Display information about the tool and API
     Info,
+}
+
+#[derive(Args)]
+struct ChatArgs {
+    #[arg(short = 's', long = "system", help = "System prompt")]
+    system: Option<String>,
+
+    #[arg(long, help = "Set the temperature for the model's output")]
+    temperature: Option<f32>,
+
+    #[arg(long = "stop", help = "Set stop sequences for the model")]
+    stop_sequences: Vec<String>,
 }
 
 #[derive(Args)]
@@ -108,6 +126,68 @@ enum MessageContent {
     AssistantImage(PathBuf),
 }
 
+async fn handle_chat(
+    anthropic: &Anthropic,
+    args: &ChatArgs,
+    cli: &Cli,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut request = MessagesRequest::default()
+        .with_model(cli.model.clone())
+        .with_max_tokens(cli.max_tokens);
+
+    if let Some(system) = &args.system {
+        request = request.with_system(system);
+    }
+
+    if let Some(temp) = &args.temperature {
+        request = request.with_temperature(*temp);
+    }
+
+    if !args.stop_sequences.is_empty() {
+        request = request.with_stop_sequences(args.stop_sequences.clone());
+    }
+
+    println!("Starting chat session. Type 'exit' to end the conversation.");
+
+    loop {
+        print!("You: ");
+        io::stdout().flush()?;
+
+        let mut user_input = String::new();
+        io::stdin().read_line(&mut user_input)?;
+
+        user_input = user_input.trim().to_string();
+
+        if user_input.is_empty() {
+            continue; // Skip this iteration if the input is empty
+        }
+
+        if user_input.to_lowercase() == "exit" {
+            println!("Ending chat session.");
+            break;
+        }
+
+        request.add_user(Content::text(user_input));
+
+        match anthropic.messages(&request).await {
+            Ok(response) => {
+                if cli.json {
+                    println!("AI: {}", serde_json::to_string_pretty(&response)?);
+                } else {
+                    println!("AI: {}", response.format_content());
+                }
+                request.merge_response(&response);
+            }
+            Err(e) => {
+                error!("Failed to send message: {}", e);
+                println!("An error occurred. Please try again.");
+            }
+        }
+    }
+
+    Ok(())
+}
+
 async fn handle_message(
     anthropic: &Anthropic,
     args: &MessageArgs,
@@ -128,7 +208,7 @@ async fn handle_message(
             if cli.json {
                 println!("{}", serde_json::to_string_pretty(&response)?);
             } else {
-                println!("{}", response.format_nicely());
+                println!("{}", response.format_content());
             }
 
             if cli.verbose >= 2 {
@@ -165,7 +245,7 @@ async fn handle_stream(
                     serde_json::to_string_pretty(&streamed_response.response)?
                 );
             } else {
-                println!("{}", streamed_response.response.format_nicely());
+                println!("{}", streamed_response.response.format_content());
             }
         }
         Err(e) => error!("Failed to start stream: {}", e),
@@ -282,6 +362,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let anthropic = Anthropic::from_string_or_env(cli.api_key.as_deref().unwrap_or(""))?;
 
     match &cli.command {
+        Commands::Chat(args) => {
+            handle_chat(&anthropic, args, &cli).await?;
+        }
         Commands::Message(args) => {
             handle_message(&anthropic, args, &cli).await?;
         }
