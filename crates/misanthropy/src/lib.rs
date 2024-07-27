@@ -661,6 +661,21 @@ impl MessagesRequest {
         self.messages.push(new_message);
     }
 
+    /// Merges a StreamedResponse into the current MessagesRequest.
+    ///
+    /// Adds the entire content of the given streamed response as a new assistant message
+    /// to the conversation history, preserving all content types.
+    ///
+    /// Useful for maintaining context in ongoing conversations by incorporating
+    /// streamed AI responses into the history for subsequent requests.
+    pub fn merge_streamed_response(&mut self, response: &StreamedResponse) {
+        let new_message = Message {
+            role: Role::Assistant,
+            content: response.response.content.clone(),
+        };
+        self.messages.push(new_message);
+    }
+
     pub fn with_tool(mut self, tool: Tool) -> Self {
         self.tools.push(tool);
         self

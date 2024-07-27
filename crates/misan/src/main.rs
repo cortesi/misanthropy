@@ -133,7 +133,8 @@ async fn handle_chat(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let mut request = MessagesRequest::default()
         .with_model(cli.model.clone())
-        .with_max_tokens(cli.max_tokens);
+        .with_max_tokens(cli.max_tokens)
+        .with_stream(true); // Enable streaming
 
     if let Some(system) = &args.system {
         request = request.with_system(system);
@@ -169,17 +170,45 @@ async fn handle_chat(
 
         request.add_user(Content::text(user_input));
 
-        match anthropic.messages(&request).await {
-            Ok(response) => {
-                if cli.json {
-                    println!("AI: {}", serde_json::to_string_pretty(&response)?);
-                } else {
-                    println!("AI: {}", response.format_content());
+        match anthropic.messages_stream(&request) {
+            Ok(mut streamed_response) => {
+                print!("AI: ");
+                io::stdout().flush()?;
+
+                let mut response_content = String::new();
+
+                while let Some(event) = streamed_response.next().await {
+                    match event {
+                        Ok(event) => {
+                            match event {
+                                misanthropy::StreamEvent::ContentBlockDelta { delta, .. } => {
+                                    if let misanthropy::ContentBlockDelta::TextDelta { text } =
+                                        delta
+                                    {
+                                        print!("{}", text);
+                                        io::stdout().flush()?;
+                                        response_content.push_str(&text);
+                                    }
+                                }
+                                misanthropy::StreamEvent::MessageStop => {
+                                    println!(); // End the line after the full response
+                                }
+                                _ => {} // Ignore other event types
+                            }
+                        }
+                        Err(e) => {
+                            error!("Error in stream: {}", e);
+                            println!("\nAn error occurred. Please try again.");
+                            break;
+                        }
+                    }
                 }
-                request.merge_response(&response);
+
+                // Merge the streamed response into the request for context
+                request.merge_streamed_response(&streamed_response);
             }
             Err(e) => {
-                error!("Failed to send message: {}", e);
+                error!("Failed to start stream: {}", e);
                 println!("An error occurred. Please try again.");
             }
         }
