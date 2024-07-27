@@ -3,6 +3,7 @@ use std::{env, path::PathBuf};
 use clap::{Args, Parser, Subcommand};
 use env_logger::Builder;
 use log::{debug, error, info, LevelFilter};
+use serde_json;
 
 use misanthropy::{
     Anthropic, Content, MessagesRequest, ANTHROPIC_API_KEY_ENV, ANTHROPIC_API_VERSION,
@@ -47,6 +48,9 @@ struct Cli {
 
     #[arg(short, long)]
     quiet: bool,
+
+    #[arg(long, help = "Output the response as JSON")]
+    json: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -121,7 +125,11 @@ async fn handle_message(
     match anthropic.messages(&request).await {
         Ok(response) => {
             info!("Message sent successfully");
-            println!("{}", response.format_nicely());
+            if cli.json {
+                println!("{}", serde_json::to_string_pretty(&response)?);
+            } else {
+                println!("{}", response.format_nicely());
+            }
 
             if cli.verbose >= 2 {
                 debug!("Full response: {:#?}", response);
@@ -151,7 +159,14 @@ async fn handle_stream(
         Ok(mut streamed_response) => {
             info!("Stream started successfully");
             while (streamed_response.next().await).is_some() {}
-            println!("{}", streamed_response.response.format_nicely());
+            if cli.json {
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&streamed_response.response)?
+                );
+            } else {
+                println!("{}", streamed_response.response.format_nicely());
+            }
         }
         Err(e) => error!("Failed to start stream: {}", e),
     }

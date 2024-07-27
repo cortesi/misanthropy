@@ -670,6 +670,7 @@ dependencies = [
  "futures-util",
  "log",
  "misanthropy",
+ "serde_json",
  "tokio",
 ]
 
