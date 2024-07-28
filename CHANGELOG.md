@@ -1,6 +1,8 @@
 
 28 July 2024 - v0.0.6
 
+- Support beta header to enable extended token output. See:
+    https://docs.anthropic.com/en/release-notes/api#july-15th-2024
 - misan chat: Interactive chat command
 - misan: --json flag to output responses as JSON
 - @philpax: Improved error responses

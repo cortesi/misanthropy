@@ -679,7 +679,7 @@ dependencies = [
 
 [[package]]
 name = "misan"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "clap",
  "colored",
@@ -693,7 +693,7 @@ dependencies = [
 
 [[package]]
 name = "misanthropy"
-version = "0.0.5"
+version = "0.0.6"
 dependencies = [
  "base64",
  "futures-util",

@@ -6,13 +6,15 @@ authors.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "An interface to the Anthropic API"
+readme = "../../README.md"
 
 [dependencies]
+misanthropy = { workspace = true }
+
 clap = { version = "4.5.7", features = ["derive"] }
 colored = "2.1.0"
 env_logger = "0.11.3"
 futures-util = "0.3.30"
 log = "0.4.21"
-misanthropy = { version="0.0.5", path = "../misanthropy" }
 serde_json = "1.0.120"
 tokio = { version = "1.38.0", features = ["full"] }

@@ -148,7 +148,10 @@ async fn handle_chat(
         request = request.with_stop_sequences(args.stop_sequences.clone());
     }
 
-    println!("Starting chat session. Type 'exit' to end the conversation.");
+    println!(
+        "{}",
+        "Starting chat session. Type 'exit' or ctrl-c to end the conversation.".blue()
+    );
 
     loop {
         print!("{} ", "You:".green().bold());
