@@ -5,7 +5,7 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "An interface to the Anthropic API"
+description = "A command-line tool for Claude and the Anthropic API"
 readme = "../../README.md"
 
 [dependencies]
