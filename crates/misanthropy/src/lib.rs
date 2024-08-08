@@ -135,6 +135,9 @@ impl Tool {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StreamEvent {
+    /// A stream error.
+    Error { error: StreamError },
+
     /// Indicates the start of a new message.
     MessageStart {
         /// The initial message response.
@@ -170,6 +173,14 @@ pub enum StreamEvent {
     },
     /// Indicates the completion of the entire message.
     MessageStop,
+}
+
+/// An error that has occurred as part of a stream.
+#[derive(Debug, Deserialize)]
+pub struct StreamError {
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub message: String,
 }
 
 /// An incremental update to a content block in a streaming response.
@@ -311,8 +322,10 @@ impl StreamedResponse {
                 self.response.stop_sequence = delta.stop_sequence.clone();
                 self.response.usage = usage.clone();
             }
-            StreamEvent::ContentBlockStop { .. } | StreamEvent::Ping | StreamEvent::MessageStop => {
-            }
+            StreamEvent::ContentBlockStop { .. }
+            | StreamEvent::Ping
+            | StreamEvent::MessageStop
+            | StreamEvent::Error { .. } => {}
         }
     }
 
