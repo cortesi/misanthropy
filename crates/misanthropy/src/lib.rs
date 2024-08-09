@@ -815,9 +815,9 @@ pub struct Anthropic {
 impl Anthropic {
     /// Creates a new Anthropic client with an optional API key.
     /// Uses default values for model and max_tokens.
-    pub fn new(api_key: String) -> Self {
+    pub fn new(api_key: &str) -> Self {
         Self {
-            api_key,
+            api_key: api_key.to_string(),
             base_url: format!("https://{}", DEFAULT_API_DOMAIN),
             use_beta: true,
         }
@@ -834,14 +834,14 @@ impl Anthropic {
     /// Reads the key from the ANTHROPIC_API_KEY environment variable.
     pub fn from_env() -> Result<Self> {
         let api_key = env::var(ANTHROPIC_API_KEY_ENV)?;
-        Ok(Self::new(api_key))
+        Ok(Self::new(&api_key))
     }
 
     // Creates an Anthropic client using a provided API key or the environment.
     /// If the provided string is empty, falls back to the ANTHROPIC_API_KEY environment variable.
     pub fn from_string_or_env(api_key: &str) -> Result<Self> {
         if !api_key.is_empty() {
-            Ok(Self::new(api_key.to_string()))
+            Ok(Self::new(api_key))
         } else {
             Self::from_env()
         }
