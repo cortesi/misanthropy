@@ -697,6 +697,11 @@ impl MessagesRequest {
         self
     }
 
+    pub fn with_tool_choice(mut self, tool_choice: ToolChoice) -> Self {
+        self.tool_choice = tool_choice;
+        self
+    }
+
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = model.into();
         self
