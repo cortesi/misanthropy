@@ -627,21 +627,21 @@ pub struct MessagesRequest {
     /// The conversation history and any new messages to process.
     pub messages: Vec<Message>,
     /// Optional system message to guide the AI's behavior.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub system: Option<String>,
     /// Optional temperature setting for response randomness.
-    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
     /// Whether to return a streaming response.
     pub stream: bool,
     /// List of tools available for the AI to use.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<Tool>,
     /// How the AI should choose which tool to use, if any.
-    #[serde(skip_serializing_if = "is_default_tool_choice")]
+    #[serde(default, skip_serializing_if = "is_default_tool_choice")]
     pub tool_choice: ToolChoice,
     /// Optional list of stop sequences to end generation.
-    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stop_sequences: Vec<String>,
 }
 
