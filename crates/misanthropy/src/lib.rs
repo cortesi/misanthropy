@@ -35,7 +35,7 @@ pub use error::*;
 /// Specifies how the AI model should choose and use tools in a conversation.
 /// Can be set to automatic, any tool, or a specific tool.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Default)]
-#[serde(rename_all = "lowercase")]
+#[serde(tag = "type", rename_all = "lowercase")]
 pub enum ToolChoice {
     /// Let the model automatically decide whether to use tools.
     #[default]
@@ -44,7 +44,7 @@ pub enum ToolChoice {
     Any,
     /// Instruct the model to use a specific tool.
     #[serde(rename = "tool")]
-    SpecificTool(String),
+    SpecificTool { name: String },
 }
 
 /// Represents a tool that can be used by the AI model in a conversation.
