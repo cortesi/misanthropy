@@ -1,4 +1,4 @@
-use misanthropy::{Anthropic, Content, MessagesRequest, Tool, DEFAULT_MODEL};
+use misanthropy::{Anthropic, Content, MessagesRequest, Tool, ToolChoice, DEFAULT_MODEL};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -12,13 +12,35 @@ struct GetStockPrice {
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let anthropic = Anthropic::from_env()?;
+
+    if std::env::args().any(|arg| arg == "--with-tool-choice") {
+        make_request(&anthropic, true).await?;
+    } else {
+        make_request(&anthropic, false).await?;
+    }
+
+    Ok(())
+}
+
+async fn make_request(
+    anthropic: &Anthropic,
+    with_tool_choice: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let get_stock_price_tool = Tool::new::<GetStockPrice>();
-    let mut request = MessagesRequest::default()
+    let get_stock_price_tool_name = get_stock_price_tool.name.clone();
+    let request = MessagesRequest::default()
         .with_model(DEFAULT_MODEL.to_string())
         .with_max_tokens(1000)
         .with_tool(get_stock_price_tool)
         .with_system("You are a helpful assistant that can look up stock prices.".to_string());
 
+    let mut request = if with_tool_choice {
+        request.with_tool_choice(ToolChoice::SpecificTool {
+            name: get_stock_price_tool_name,
+        })
+    } else {
+        request
+    };
     request.add_user(Content::text("What is Apple's stock price today?"));
 
     println!("Making request...");
