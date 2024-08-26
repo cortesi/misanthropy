@@ -691,6 +691,10 @@ pub struct Usage {
     pub input_tokens: Option<u32>,
     /// Number of tokens in the output message
     pub output_tokens: Option<u32>,
+    /// Number of input tokens that went to cache creation
+    pub cache_creation_input_tokens: Option<u32>,
+    /// Number of input tokens that resulted in a cache read
+    pub cache_read_input_tokens: Option<u32>,
 }
 
 fn is_default_tool_choice(choice: &ToolChoice) -> bool {
