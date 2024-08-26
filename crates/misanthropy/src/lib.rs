@@ -115,6 +115,9 @@ pub struct Tool {
     pub description: String,
     /// The JSON schema defining the structure of the tool's input.
     pub input_schema: RootSchema,
+    /// Optional cache control settings for the tool.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<CacheControl>,
 }
 
 impl Tool {
@@ -137,6 +140,7 @@ impl Tool {
             name,
             description,
             input_schema: schema,
+            cache_control: None,
         }
     }
 
@@ -317,19 +321,19 @@ impl StreamedResponse {
             StreamEvent::ContentBlockDelta { index, delta } => {
                 if let Some(block) = self.response.content.get_mut(*index) {
                     match block {
-                        Content::Text { text } => match delta {
+                        Content::Text(text) => match delta {
                             ContentBlockDelta::TextDelta { text: delta_text } => {
-                                text.push_str(delta_text);
+                                text.text.push_str(delta_text);
                             }
                             ContentBlockDelta::InputJsonDelta { .. } => {}
                         },
-                        Content::Image { .. } => {}
-                        Content::ToolUse { .. } => {
+                        Content::Image(_) => {}
+                        Content::ToolUse(_) => {
                             unimplemented!(
                                 "Partial updates for ToolUse blocks are not supported yet"
                             );
                         }
-                        Content::ToolResult { .. } => {}
+                        Content::ToolResult(_) => {}
                     }
                 }
             }
@@ -350,8 +354,8 @@ impl StreamedResponse {
             .content
             .iter()
             .filter_map(|block| {
-                if let Content::Text { text } = block {
-                    Some(text.clone())
+                if let Content::Text(text) = block {
+                    Some(text.text.clone())
                 } else {
                     None
                 }
@@ -466,15 +470,15 @@ impl MessagesResponse {
 
         for content in &self.content {
             match content {
-                Content::Text { text } => {
+                Content::Text(text) => {
                     if self.role == Role::User {
                         has_user_messages = true;
-                        output.push_str(&format!("user: {}\n", text));
+                        output.push_str(&format!("user: {}\n", text.text));
                     } else {
-                        output.push_str(&format!("assistant: {}\n", text));
+                        output.push_str(&format!("assistant: {}\n", text.text));
                     }
                 }
-                Content::Image { source } => {
+                Content::Image(image) => {
                     output.push_str(&format!(
                         "{}: [Image: {} {}]\n",
                         if self.role == Role::User {
@@ -482,8 +486,8 @@ impl MessagesResponse {
                         } else {
                             "assistant"
                         },
-                        source.source_type,
-                        source.media_type
+                        image.source.source_type,
+                        image.source.media_type
                     ));
                     has_user_messages = true; // Always show roles if there are images
                 }
@@ -540,6 +544,20 @@ pub struct ToolUse {
     pub name: String,
     /// The input provided to the tool, in a flexible JSON format.
     pub input: Value,
+    /// Optional cache control settings for the tool use.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<CacheControl>,
+}
+
+impl ToolUse {
+    pub fn new(id: String, name: String, input: Value) -> Self {
+        Self {
+            id,
+            name,
+            input,
+            cache_control: None,
+        }
+    }
 }
 
 /// A response to a tool used by the AI model during a conversation.
@@ -550,16 +568,63 @@ pub struct ToolResult {
     pub tool_use_id: String,
     /// The output of the tool. Arbitrary format, but should be intelligible to the assistant.
     pub content: String,
+    /// Optional cache control settings for the tool result.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<CacheControl>,
 }
 
-/// A piece of content in a message, either text or an image.
+impl ToolResult {
+    pub fn new(tool_use_id: String, content: String) -> Self {
+        Self {
+            tool_use_id,
+            content,
+            cache_control: None,
+        }
+    }
+}
+
+/// Textual content in a message.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Text {
+    pub text: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<CacheControl>,
+}
+
+impl Text {
+    pub fn new(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            cache_control: None,
+        }
+    }
+}
+
+/// An image with its source information in a message.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Image {
+    pub source: Source,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cache_control: Option<CacheControl>,
+}
+
+impl Image {
+    pub fn new(source: Source) -> Self {
+        Self {
+            source,
+            cache_control: None,
+        }
+    }
+}
+
+/// A piece of content in a message.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Content {
     /// Textual content.
-    Text { text: String },
+    Text(Text),
     /// An image with its source information.
-    Image { source: Source },
+    Image(Image),
     /// Details of a tool used by the AI.
     ToolUse(ToolUse),
     /// The result to a tool used by the AI.
@@ -569,7 +634,7 @@ pub enum Content {
 impl Content {
     /// Creates a new text content block.
     pub fn text(text: impl Into<String>) -> Self {
-        Content::Text { text: text.into() }
+        Content::Text(Text::new(text))
     }
 
     /// Creates a new image content block from a file path by reading the image
@@ -579,13 +644,11 @@ impl Content {
         let image_data = fs::read(path)?;
         let base64_image = BASE64_STANDARD.encode(image_data);
 
-        Ok(Content::Image {
-            source: Source {
-                source_type: "base64".to_string(),
-                media_type: Self::detect_media_type(path),
-                data: base64_image,
-            },
-        })
+        Ok(Content::Image(Image::new(Source {
+            source_type: "base64".to_string(),
+            media_type: Self::detect_media_type(path),
+            data: base64_image,
+        })))
     }
 
     /// Creates a tool result block given a tool use and some content.
@@ -593,6 +656,7 @@ impl Content {
         Content::ToolResult(ToolResult {
             tool_use_id: tool_use.id.clone(),
             content: content.into(),
+            cache_control: None,
         })
     }
 
@@ -799,9 +863,12 @@ impl Message {
             .content
             .iter()
             .map(|content| match content {
-                Content::Text { text } => text.clone(),
-                Content::Image { source } => {
-                    format!("[Image: {} {}]", source.source_type, source.media_type)
+                Content::Text(text) => text.text.clone(),
+                Content::Image(image) => {
+                    format!(
+                        "[Image: {} {}]",
+                        image.source.source_type, image.source.media_type
+                    )
                 }
                 Content::ToolUse(tool_use) => {
                     format!(
