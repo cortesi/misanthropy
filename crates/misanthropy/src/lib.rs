@@ -9,7 +9,7 @@ use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use reqwest_eventsource::{Event, EventSource};
 use schemars::{schema::RootSchema, schema_for, JsonSchema};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 
 /// Default Anthropic AI model identifier used for API requests.
 pub const DEFAULT_MODEL: &str = "claude-3-opus-20240229";
@@ -25,10 +25,26 @@ pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 
 const DEFAULT_API_DOMAIN: &str = "api.anthropic.com";
 
-/// Beta header value for increased output tokens
-pub const ANTHROPIC_BETA_HEADER_VALUE: &str = "max-tokens-3-5-sonnet-2024-07-15";
+/// Beta header to enable prompt caching
+pub const ANTHROPIC_BETA_HEADER_VALUE: &str = "prompt-caching-2024-07-31";
 
 mod error;
+
+/// Represents cache control options for conversation blocks.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type")]
+pub enum CacheControl {
+    /// Indicates that the content is ephemeral and should not be cached.
+    #[serde(rename = "ephemeral")]
+    Ephemeral,
+}
+
+impl CacheControl {
+    /// Serializes the CacheControl enum to a JSON value.
+    pub fn to_json(&self) -> Value {
+        json!({"type": "ephemeral"})
+    }
+}
 
 pub use error::*;
 
@@ -995,5 +1011,18 @@ mod tests {
         let enum_values = test_enum_obj["enum"].as_array().unwrap();
         assert!(enum_values.contains(&Value::String("OptionA".to_string())));
         assert!(enum_values.contains(&Value::String("OptionB".to_string())));
+    }
+
+    #[test]
+    fn test_cache_control_serialization() {
+        let cache_control = CacheControl::Ephemeral;
+        let json = cache_control.to_json();
+        assert_eq!(json, json!({"type": "ephemeral"}));
+
+        let serialized = serde_json::to_string(&cache_control).unwrap();
+        assert_eq!(serialized, r#"{"type":"ephemeral"}"#);
+
+        let deserialized: CacheControl = serde_json::from_str(&serialized).unwrap();
+        assert_eq!(deserialized, CacheControl::Ephemeral);
     }
 }
