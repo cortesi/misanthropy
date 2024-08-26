@@ -137,7 +137,7 @@ async fn handle_chat(
         .with_stream(true);
 
     if let Some(system) = &args.system {
-        request = request.with_system(system);
+        request.add_system(Content::text(system));
     }
 
     if let Some(temp) = &args.temperature {
@@ -297,7 +297,7 @@ fn build_request(
         .with_max_tokens(cli.max_tokens);
 
     if let Some(system) = &args.system {
-        request = request.with_system(system);
+        request.add_system(Content::text(system));
     }
 
     if let Some(temp) = &args.temperature {

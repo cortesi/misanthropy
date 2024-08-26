@@ -125,7 +125,7 @@ let weather_tool = Tool::new::<GetWeather>();
 ```rust
 let request = MessagesRequest::default()
     .with_tool(weather_tool)
-    .with_system("You can use the GetWeather tool to check the weather.");
+    .with_system(vec![Content::text("You can use the GetWeather tool to check the weather.")]);
 ```
 
 5. When the AI uses the tool, you can deserialize the input:

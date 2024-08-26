@@ -706,9 +706,9 @@ pub struct MessagesRequest {
     pub max_tokens: u32,
     /// The conversation history and any new messages to process.
     pub messages: Vec<Message>,
-    /// Optional system message to guide the AI's behavior.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub system: Option<String>,
+    /// Optional system messages to guide the AI's behavior.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub system: Vec<Content>,
     /// Optional temperature setting for response randomness.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub temperature: Option<f32>,
@@ -731,7 +731,7 @@ impl Default for MessagesRequest {
             model: DEFAULT_MODEL.to_string(),
             max_tokens: DEFAULT_MAX_TOKENS,
             messages: Vec::new(),
-            system: None,
+            system: Vec::new(),
             temperature: None,
             stream: false,
             tools: Vec::new(),
@@ -802,9 +802,13 @@ impl MessagesRequest {
         self
     }
 
-    pub fn with_system(mut self, system: impl Into<String>) -> Self {
-        self.system = Some(system.into());
+    pub fn with_system(mut self, system: Vec<Content>) -> Self {
+        self.system = system;
         self
+    }
+
+    pub fn add_system(&mut self, content: Content) {
+        self.system.push(content);
     }
 
     pub fn with_stop_sequences(mut self, stop_sequences: Vec<String>) -> Self {

@@ -32,7 +32,9 @@ async fn make_request(
         .with_model(DEFAULT_MODEL.to_string())
         .with_max_tokens(1000)
         .with_tool(get_stock_price_tool)
-        .with_system("You are a helpful assistant that can look up stock prices.".to_string());
+        .with_system(vec![Content::text(
+            "You are a helpful assistant that can look up stock prices.",
+        )]);
 
     let mut request = if with_tool_choice {
         request.with_tool_choice(ToolChoice::SpecificTool {
