@@ -308,7 +308,7 @@ impl StreamedResponse {
                 self.response.content = message.content.clone();
                 self.response.stop_reason = message.stop_reason.clone();
                 self.response.stop_sequence = message.stop_sequence.clone();
-                self.response.usage = message.usage.clone();
+                self.response.usage = self.response.usage.merge(&message.usage);
             }
             StreamEvent::ContentBlockStart {
                 index,
@@ -340,7 +340,7 @@ impl StreamedResponse {
             StreamEvent::MessageDelta { delta, usage } => {
                 self.response.stop_reason = delta.stop_reason.clone();
                 self.response.stop_sequence = delta.stop_sequence.clone();
-                self.response.usage = usage.clone();
+                self.response.usage = self.response.usage.merge(usage);
             }
             StreamEvent::ContentBlockStop { .. }
             | StreamEvent::Ping
@@ -459,7 +459,8 @@ pub struct MessagesResponse {
     /// Always "message" for this type of response.
     #[serde(rename = "type")]
     pub message_type: String,
-    /// Token usage statistics for this response.
+    /// Token usage statistics for this response. For streaming responses, this is cumulative over
+    /// all streamed messages.
     pub usage: Usage,
 }
 
@@ -695,6 +696,23 @@ pub struct Usage {
     pub cache_creation_input_tokens: Option<u32>,
     /// Number of input tokens that resulted in a cache read
     pub cache_read_input_tokens: Option<u32>,
+}
+
+impl Usage {
+    pub fn merge(&self, other: &Usage) -> Self {
+        Usage {
+            input_tokens: Some(self.input_tokens.unwrap_or(0) + other.input_tokens.unwrap_or(0)),
+            output_tokens: Some(self.output_tokens.unwrap_or(0) + other.output_tokens.unwrap_or(0)),
+            cache_creation_input_tokens: Some(
+                self.cache_creation_input_tokens.unwrap_or(0)
+                    + other.cache_creation_input_tokens.unwrap_or(0),
+            ),
+            cache_read_input_tokens: Some(
+                self.cache_read_input_tokens.unwrap_or(0)
+                    + other.cache_read_input_tokens.unwrap_or(0),
+            ),
+        }
+    }
 }
 
 fn is_default_tool_choice(choice: &ToolChoice) -> bool {
