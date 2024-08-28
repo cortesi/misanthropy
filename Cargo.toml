@@ -1,6 +1,6 @@
 
 [workspace.package]
-version = "0.0.6"
+version = "0.0.7"
 edition = "2021"
 authors = ["Aldo Cortesi <aldo@corte.si>"]
 description = "An complete, ergonomic SDK for Claude and the Anthropic API"
@@ -14,4 +14,4 @@ members = ["crates/*"]
 
 
 [workspace.dependencies]
-misanthropy = { version = "0.0.6", path = "crates/misanthropy" }
+misanthropy = { version = "0.0.7", path = "crates/misanthropy" }

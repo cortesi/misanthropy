@@ -1,3 +1,11 @@
+28 August 2024 - v0.0.7
+
+- Add the `cache_control` field to various API objects. 
+- `MessagesResponse.system` is now a vec of `Content` objects.
+- Add cache_creation_input_tokens and cache_read_input_tokens to `Usage`
+- `MessagesResponse.usage` is now cumulative for streamed responses 
+- Fix ToolChoice::SpecifiedTool structure (@philpax)
+- Add support for error events in streaming responses
 
 28 July 2024 - v0.0.6
 
