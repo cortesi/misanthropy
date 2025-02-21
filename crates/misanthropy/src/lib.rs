@@ -1,5 +1,6 @@
 //! Rust client for the Anthropic API.
 use std::any::type_name;
+use std::time::Duration;
 use std::{env, fs, path::Path};
 
 use base64::prelude::*;
@@ -745,6 +746,9 @@ pub struct MessagesRequest {
     /// Optional list of stop sequences to end generation.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stop_sequences: Vec<String>,
+    /// Optional request timeout.
+    #[serde(default)]
+    pub timeout: Option<Duration>,
 }
 
 impl Default for MessagesRequest {
@@ -759,6 +763,7 @@ impl Default for MessagesRequest {
             tools: Vec::new(),
             tool_choice: ToolChoice::default(),
             stop_sequences: Vec::new(),
+            timeout: None,
         }
     }
 }
@@ -826,6 +831,11 @@ impl MessagesRequest {
 
     pub fn with_system(mut self, system: Vec<Content>) -> Self {
         self.system = system;
+        self
+    }
+
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
         self
     }
 
@@ -991,13 +1001,15 @@ impl Anthropic {
                 "Streaming requests must have stream set to true".to_string(),
             ));
         }
-        let event_source = EventSource::new(
-            reqwest::Client::new()
-                .post(format!("{}/v1/messages", self.base_url))
-                .headers(self.create_headers()?)
-                .json(&request),
-        )
-        .map_err(|e| Error::EventSourceError(e.to_string()))?;
+        let mut http_request = reqwest::Client::new()
+            .post(format!("{}/v1/messages", self.base_url))
+            .headers(self.create_headers()?)
+            .json(&request);
+        if let Some(timeout) = request.timeout {
+            http_request = http_request.timeout(timeout);
+        }
+        let event_source =
+            EventSource::new(http_request).map_err(|e| Error::EventSourceError(e.to_string()))?;
 
         Ok(StreamedResponse::new(event_source))
     }
@@ -1006,12 +1018,14 @@ impl Anthropic {
     /// Uses client defaults for model and max_tokens if not specified in the request.
     pub async fn messages(&self, request: &MessagesRequest) -> Result<MessagesResponse> {
         let client = reqwest::Client::new();
-        let response = client
+        let mut http_request = client
             .post(format!("{}/v1/messages", self.base_url))
             .headers(self.create_headers()?)
-            .json(&request)
-            .send()
-            .await?;
+            .json(&request);
+        if let Some(timeout) = request.timeout {
+            http_request = http_request.timeout(timeout);
+        }
+        let response = http_request.send().await?;
 
         let status = response.status();
 
