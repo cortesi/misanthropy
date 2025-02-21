@@ -746,9 +746,6 @@ pub struct MessagesRequest {
     /// Optional list of stop sequences to end generation.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stop_sequences: Vec<String>,
-    /// Optional request timeout.
-    #[serde(default)]
-    pub timeout: Option<Duration>,
 }
 
 impl Default for MessagesRequest {
@@ -763,7 +760,6 @@ impl Default for MessagesRequest {
             tools: Vec::new(),
             tool_choice: ToolChoice::default(),
             stop_sequences: Vec::new(),
-            timeout: None,
         }
     }
 }
@@ -831,11 +827,6 @@ impl MessagesRequest {
 
     pub fn with_system(mut self, system: Vec<Content>) -> Self {
         self.system = system;
-        self
-    }
-
-    pub fn with_timeout(mut self, timeout: Duration) -> Self {
-        self.timeout = Some(timeout);
         self
     }
 
@@ -934,6 +925,7 @@ pub struct Anthropic {
     api_key: String,
     base_url: String,
     use_beta: bool,
+    timeout: Option<Duration>,
 }
 
 impl Anthropic {
@@ -944,6 +936,7 @@ impl Anthropic {
             api_key: api_key.to_string(),
             base_url: format!("https://{}", DEFAULT_API_DOMAIN),
             use_beta: true,
+            timeout: None,
         }
     }
 
@@ -951,6 +944,12 @@ impl Anthropic {
     /// See: https://docs.anthropic.com/en/release-notes/api#july-15th-2024
     pub fn with_beta(mut self, use_beta: bool) -> Self {
         self.use_beta = use_beta;
+        self
+    }
+
+    /// Adds a timeout to any requests sent with this client.
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
         self
     }
 
@@ -1005,7 +1004,7 @@ impl Anthropic {
             .post(format!("{}/v1/messages", self.base_url))
             .headers(self.create_headers()?)
             .json(&request);
-        if let Some(timeout) = request.timeout {
+        if let Some(timeout) = self.timeout {
             http_request = http_request.timeout(timeout);
         }
         let event_source =
@@ -1022,7 +1021,7 @@ impl Anthropic {
             .post(format!("{}/v1/messages", self.base_url))
             .headers(self.create_headers()?)
             .json(&request);
-        if let Some(timeout) = request.timeout {
+        if let Some(timeout) = self.timeout {
             http_request = http_request.timeout(timeout);
         }
         let response = http_request.send().await?;
