@@ -184,14 +184,13 @@ async fn handle_chat(
                     match event {
                         Ok(event) => {
                             match event {
-                                misanthropy::StreamEvent::ContentBlockDelta { delta, .. } => {
-                                    if let misanthropy::ContentBlockDelta::TextDelta { text } =
-                                        delta
-                                    {
-                                        print!("{}", text);
-                                        io::stdout().flush()?;
-                                        response_content.push_str(&text);
-                                    }
+                                misanthropy::StreamEvent::ContentBlockDelta {
+                                    delta: misanthropy::ContentBlockDelta::TextDelta { text },
+                                    ..
+                                } => {
+                                    print!("{}", text);
+                                    io::stdout().flush()?;
+                                    response_content.push_str(&text);
                                 }
                                 misanthropy::StreamEvent::MessageStop => {
                                     println!(); // End the line after the full response
