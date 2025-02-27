@@ -290,7 +290,20 @@ impl StreamedResponse {
 
                     Err(e) => return Some(Err(Error::ResponseParseError(e))),
                 },
-                Err(e) => return Some(Err(Error::StreamError(e.to_string()))),
+                Err(e) => {
+                    // Check if this is a transport error that might have status code info
+                    if let reqwest_eventsource::Error::Transport(transport_err) = &e {
+                        if let Some(status) = transport_err.status() {
+                            if status.as_u16() == 429 {
+                                return Some(Err(Error::RateLimitExceeded(format!(
+                                    "Rate limit exceeded: {}",
+                                    e
+                                ))));
+                            }
+                        }
+                    }
+                    return Some(Err(Error::StreamError(e.to_string())));
+                }
             }
         }
 
