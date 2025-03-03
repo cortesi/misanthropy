@@ -1,5 +1,6 @@
 //! Rust client for the Anthropic API.
 use std::any::type_name;
+use std::time::Duration;
 use std::{env, fs, path::Path};
 
 use base64::prelude::*;
@@ -937,6 +938,7 @@ pub struct Anthropic {
     api_key: String,
     base_url: String,
     use_beta: bool,
+    timeout: Option<Duration>,
 }
 
 impl Anthropic {
@@ -947,6 +949,7 @@ impl Anthropic {
             api_key: api_key.to_string(),
             base_url: format!("https://{}", DEFAULT_API_DOMAIN),
             use_beta: true,
+            timeout: None,
         }
     }
 
@@ -954,6 +957,12 @@ impl Anthropic {
     /// See: https://docs.anthropic.com/en/release-notes/api#july-15th-2024
     pub fn with_beta(mut self, use_beta: bool) -> Self {
         self.use_beta = use_beta;
+        self
+    }
+
+    /// Adds a timeout to any requests sent with this client.
+    pub fn with_timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
         self
     }
 
@@ -1004,13 +1013,15 @@ impl Anthropic {
                 "Streaming requests must have stream set to true".to_string(),
             ));
         }
-        let event_source = EventSource::new(
-            reqwest::Client::new()
-                .post(format!("{}/v1/messages", self.base_url))
-                .headers(self.create_headers()?)
-                .json(&request),
-        )
-        .map_err(|e| Error::EventSourceError(e.to_string()))?;
+        let mut http_request = reqwest::Client::new()
+            .post(format!("{}/v1/messages", self.base_url))
+            .headers(self.create_headers()?)
+            .json(&request);
+        if let Some(timeout) = self.timeout {
+            http_request = http_request.timeout(timeout);
+        }
+        let event_source =
+            EventSource::new(http_request).map_err(|e| Error::EventSourceError(e.to_string()))?;
 
         Ok(StreamedResponse::new(event_source))
     }
@@ -1019,12 +1030,14 @@ impl Anthropic {
     /// Uses client defaults for model and max_tokens if not specified in the request.
     pub async fn messages(&self, request: &MessagesRequest) -> Result<MessagesResponse> {
         let client = reqwest::Client::new();
-        let response = client
+        let mut http_request = client
             .post(format!("{}/v1/messages", self.base_url))
             .headers(self.create_headers()?)
-            .json(&request)
-            .send()
-            .await?;
+            .json(&request);
+        if let Some(timeout) = self.timeout {
+            http_request = http_request.timeout(timeout);
+        }
+        let response = http_request.send().await?;
 
         let status = response.status();
 
