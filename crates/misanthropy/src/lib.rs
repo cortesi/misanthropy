@@ -31,6 +31,7 @@ pub const TEXT_EDITOR_37: &str = "text_editor_20250124";
 pub const TEXT_EDITOR_35: &str = "text_editor_20241022";
 
 mod error;
+pub mod tools;
 
 /// Represents cache control options for conversation blocks.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
