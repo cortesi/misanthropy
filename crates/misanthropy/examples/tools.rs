@@ -29,6 +29,7 @@ async fn make_request(
     let get_stock_price_tool = Tool::custom::<GetStockPrice>("stockprice");
     let get_stock_price_tool_name = match &get_stock_price_tool {
         Tool::Custom { name, .. } => name.clone(),
+        Tool::TextEditor { name, .. } => name.clone(),
     };
     let request = MessagesRequest::default()
         .with_model(DEFAULT_MODEL.to_string())

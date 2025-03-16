@@ -110,6 +110,14 @@ pub enum Tool {
         #[serde(skip_serializing_if = "Option::is_none")]
         cache_control: Option<CacheControl>,
     },
+    TextEditor {
+        name: String,
+        #[serde(rename = "type")]
+        typ: String,
+        /// Optional cache control settings for the tool.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
+    },
 }
 
 impl Tool {
@@ -790,6 +798,22 @@ impl MessagesRequest {
         self.messages.push(new_message);
     }
 
+    /// Adds a text editor tool to the request.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the text editor tool, e.g. `text_editor`
+    /// * `typ` - The type of the text editor. This must match the model, and should be either
+    /// `TEXT_EDITOR_35` or `TEXT_EDITOR_37`.
+    pub fn with_text_editor(mut self, name: impl Into<String>, typ: impl Into<String>) -> Self {
+        self.tools.push(Tool::TextEditor {
+            name: name.into(),
+            typ: typ.into(),
+            cache_control: None,
+        });
+        self
+    }
+
     pub fn with_tool(mut self, tool: Tool) -> Self {
         self.tools.push(tool);
         self
@@ -834,8 +858,8 @@ impl MessagesRequest {
         self
     }
 
-    pub fn add_stop_sequence(&mut self, stop_sequence: String) {
-        self.stop_sequences.push(stop_sequence);
+    pub fn add_stop_sequence(&mut self, stop_sequence: &str) {
+        self.stop_sequences.push(stop_sequence.into());
     }
 
     pub fn add_user(&mut self, content: Content) {
@@ -1039,9 +1063,12 @@ mod tests {
         let json_obj = json.as_object().unwrap();
 
         // Check the basic properties
-        let Tool::Custom {
-            name, description, ..
-        } = &tool;
+        let (name, description) = match &tool {
+            Tool::Custom {
+                name, description, ..
+            } => (name, description),
+            Tool::TextEditor { name, .. } => (name, &"Text editor tool".to_string()),
+        };
         assert_eq!(name, "testtool");
         assert_eq!(description, "This is a test description");
 
