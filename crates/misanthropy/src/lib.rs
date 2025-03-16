@@ -1,5 +1,4 @@
 //! Rust client for the Anthropic API.
-use std::any::type_name;
 use std::{env, fs, path::Path};
 
 use base64::prelude::*;
@@ -66,23 +65,13 @@ pub enum ToolChoice {
 
 /// Represents a tool that can be used by the AI model in a conversation.
 ///
-/// A `Tool` defines a capability that the AI can use to perform specific tasks
-/// or retrieve information. It consists of a name, description, and an input schema
-/// that defines the structure of the data the tool expects.
-///
-/// The name and description are automatically derived from the input type used
-/// to create the tool, leveraging Rust's type system and documentation features.
-///
-/// # Fields
-///
-/// * `name`: The name of the tool, automatically derived from the input type's name.
-/// * `description`: A description of what the tool does, taken from the input type's doc comment.
-/// * `input_schema`: A `RootSchema` that defines the structure of the input the tool expects.
+/// This enum allows for different types of tools to be defined:
+/// - `Custom`: A user-defined tool with a name, description, and input schema.
 ///
 /// # Usage
 ///
-/// To create a new `Tool`, define a struct that represents the tool's input,
-/// implement `JsonSchema` for it, and use the `Tool::new()` method:
+/// To create a new custom tool, define a struct that represents the tool's input,
+/// implement `JsonSchema` for it, and use the `Tool::custom()` method:
 ///
 /// ```ignore
 /// use schemars::JsonSchema;
@@ -97,32 +86,34 @@ pub enum ToolChoice {
 ///     unit: Option<String>,
 /// }
 ///
-/// let weather_tool = Tool::new::<GetWeather>();
+/// let weather_tool = Tool::custom::<GetWeather>();
 /// ```
 ///
-/// The resulting `Tool` will have its name set to "GetWeather", its description
+/// The resulting tool will have its name set to "GetWeather", its description
 /// set to "Get the current weather for a location.", and its input schema derived
 /// from the `GetWeather` struct.
-///
-/// # Note
-///
-/// Ensure that the struct used to create the tool has a meaningful name and
-/// is well-documented, as this information is used directly in the created `Tool`.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Tool {
-    /// The name of the tool.
-    pub name: String,
-    /// A description of the tool's purpose and functionality.
-    pub description: String,
-    /// The JSON schema defining the structure of the tool's input.
-    pub input_schema: RootSchema,
-    /// Optional cache control settings for the tool.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cache_control: Option<CacheControl>,
+#[serde(untagged)]
+pub enum Tool {
+    /// A custom tool with a name, description, and input schema.
+    Custom {
+        /// The name of the tool.
+        name: String,
+        /// A description of the tool's purpose and functionality.
+        description: String,
+        /// The JSON schema defining the structure of the tool's input.
+        input_schema: RootSchema,
+        /// Optional cache control settings for the tool.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
+    },
 }
 
 impl Tool {
-    pub fn new<T: JsonSchema>() -> Self {
+    /// Creates a new custom tool from a type implementing JsonSchema.
+    ///
+    /// The tool's name and description are automatically derived from the input type.
+    pub fn custom<T: JsonSchema>(name: &str) -> Self {
         let schema = schema_for!(T);
         let description = schema
             .schema
@@ -131,24 +122,12 @@ impl Tool {
             .and_then(|m| m.description.clone())
             .unwrap_or_else(|| "No description provided".to_string());
 
-        let name = type_name::<T>()
-            .split("::")
-            .last()
-            .unwrap_or("UnknownTool")
-            .to_string();
-
-        Self {
-            name,
+        Self::Custom {
+            name: name.into(),
             description,
             input_schema: schema,
             cache_control: None,
         }
-    }
-
-    pub fn with_name<T: JsonSchema>(name: String) -> Self {
-        let mut tool = Self::new::<T>();
-        tool.name = name;
-        tool
     }
 }
 
@@ -1063,11 +1042,7 @@ mod tests {
     #[test]
     fn test_tool_creation_and_serialization() {
         // Create a tool
-        let tool = Tool::new::<TestInput>();
-
-        // Check the basic properties
-        assert_eq!(tool.name, "TestInput");
-        assert_eq!(tool.description, "This is a test description");
+        let tool = Tool::custom::<TestInput>("testtool");
 
         // Serialize the tool to JSON
         let json = serde_json::to_value(&tool).expect("Failed to serialize Tool to JSON");
@@ -1075,6 +1050,13 @@ mod tests {
         // Check the structure of the serialized JSON
         assert!(json.is_object());
         let json_obj = json.as_object().unwrap();
+
+        // Check the basic properties
+        let Tool::Custom {
+            name, description, ..
+        } = &tool;
+        assert_eq!(name, "testtool");
+        assert_eq!(description, "This is a test description");
 
         assert!(json_obj.contains_key("name"));
         assert!(json_obj.contains_key("description"));

@@ -26,8 +26,10 @@ async fn make_request(
     anthropic: &Anthropic,
     with_tool_choice: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let get_stock_price_tool = Tool::new::<GetStockPrice>();
-    let get_stock_price_tool_name = get_stock_price_tool.name.clone();
+    let get_stock_price_tool = Tool::custom::<GetStockPrice>("stockprice");
+    let get_stock_price_tool_name = match &get_stock_price_tool {
+        Tool::Custom { name, .. } => name.clone(),
+    };
     let request = MessagesRequest::default()
         .with_model(DEFAULT_MODEL.to_string())
         .with_max_tokens(1000)
@@ -44,6 +46,8 @@ async fn make_request(
         request
     };
     request.add_user(Content::text("What is Apple's stock price today?"));
+
+    println!("{}", serde_json::to_string_pretty(&request)?);
 
     println!("Making request...");
     let response = anthropic.messages(&request).await?;
