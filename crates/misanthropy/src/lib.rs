@@ -59,8 +59,9 @@ pub enum ToolChoice {
     /// Allow the model to use any available tool.
     Any,
     /// Instruct the model to use a specific tool.
-    #[serde(rename = "tool")]
-    SpecificTool { name: String },
+    Tool { name: String },
+    /// Instruct the model not to use any tools
+    None,
 }
 
 /// Represents a tool that can be used by the AI model in a conversation.

@@ -37,7 +37,7 @@ async fn make_request(
         )]);
 
     let mut request = if with_tool_choice {
-        request.with_tool_choice(ToolChoice::SpecificTool {
+        request.with_tool_choice(ToolChoice::Tool {
             name: get_stock_price_tool_name,
         })
     } else {
