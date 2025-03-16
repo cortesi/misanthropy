@@ -805,10 +805,10 @@ impl MessagesRequest {
     ///
     /// * `name` - The name of the text editor tool, e.g. `text_editor`
     /// * `typ` - The type of the text editor. This must match the model, and should be either
-    /// `TEXT_EDITOR_35` or `TEXT_EDITOR_37`.
-    pub fn with_text_editor(mut self, name: impl Into<String>, typ: impl Into<String>) -> Self {
+    ///   `TEXT_EDITOR_35` or `TEXT_EDITOR_37`.
+    pub fn with_text_editor(mut self, typ: impl Into<String>) -> Self {
         self.tools.push(Tool::TextEditor {
-            name: name.into(),
+            name: "str_replace_editor".into(),
             typ: typ.into(),
             cache_control: None,
         });
