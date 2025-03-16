@@ -30,6 +30,8 @@ pub const TEXT_EDITOR_37: &str = "text_editor_20250124";
 /// Name of the built-in text editor tool for Claude 3.5
 pub const TEXT_EDITOR_35: &str = "text_editor_20241022";
 
+pub const TEXT_EDITOR_NAME: &str = "str_replace_editor";
+
 mod error;
 pub mod tools;
 
@@ -103,18 +105,26 @@ pub enum Tool {
     Custom {
         /// The name of the tool.
         name: String,
+
         /// A description of the tool's purpose and functionality.
         description: String,
+
         /// The JSON schema defining the structure of the tool's input.
         input_schema: RootSchema,
+
         /// Optional cache control settings for the tool.
         #[serde(skip_serializing_if = "Option::is_none")]
         cache_control: Option<CacheControl>,
     },
     TextEditor {
+        /// Must be equal to the constant `TEXT_EDITOR_NAME`.
         name: String,
+
+        /// The type of the text editor tool. This must match the model, and should be either
+        /// equal to the constants in `TEXT_EDITOR_35` or `TEXT_EDITOR_37`.
         #[serde(rename = "type")]
         typ: String,
+
         /// Optional cache control settings for the tool.
         #[serde(skip_serializing_if = "Option::is_none")]
         cache_control: Option<CacheControl>,
@@ -808,7 +818,7 @@ impl MessagesRequest {
     ///   `TEXT_EDITOR_35` or `TEXT_EDITOR_37`.
     pub fn with_text_editor(mut self, typ: impl Into<String>) -> Self {
         self.tools.push(Tool::TextEditor {
-            name: "str_replace_editor".into(),
+            name: TEXT_EDITOR_NAME.into(),
             typ: typ.into(),
             cache_control: None,
         });
