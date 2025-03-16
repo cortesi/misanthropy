@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 /// Default Anthropic AI model identifier used for API requests.
-pub const DEFAULT_MODEL: &str = "claude-3-opus-20240229";
+pub const DEFAULT_MODEL: &str = "claude-3-7-sonnet-latest";
 
 /// Default maximum number of tokens for AI model responses.
 pub const DEFAULT_MAX_TOKENS: u32 = 1024;
@@ -24,8 +24,11 @@ pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 
 const DEFAULT_API_DOMAIN: &str = "api.anthropic.com";
 
-/// Beta header to enable prompt caching
-pub const ANTHROPIC_BETA_HEADER_VALUE: &str = "prompt-caching-2024-07-31";
+/// Name of the built-in text editor tool for Claude 3.7
+pub const TEXT_EDITOR_37: &str = "text_editor_20250124";
+
+/// Name of the built-in text editor tool for Claude 3.5
+pub const TEXT_EDITOR_35: &str = "text_editor_20241022";
 
 mod error;
 
@@ -916,7 +919,6 @@ impl Message {
 pub struct Anthropic {
     api_key: String,
     base_url: String,
-    use_beta: bool,
 }
 
 impl Anthropic {
@@ -926,15 +928,7 @@ impl Anthropic {
         Self {
             api_key: api_key.to_string(),
             base_url: format!("https://{}", DEFAULT_API_DOMAIN),
-            use_beta: true,
         }
-    }
-
-    /// Enables or disables the beta feature for increased output tokens.
-    /// See: https://docs.anthropic.com/en/release-notes/api#july-15th-2024
-    pub fn with_beta(mut self, use_beta: bool) -> Self {
-        self.use_beta = use_beta;
-        self
     }
 
     /// Creates an Anthropic client using the API key from the environment.
@@ -963,13 +957,6 @@ impl Anthropic {
             HeaderValue::from_static(ANTHROPIC_API_VERSION),
         );
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-
-        if self.use_beta {
-            headers.insert(
-                "anthropic-beta",
-                HeaderValue::from_static(ANTHROPIC_BETA_HEADER_VALUE),
-            );
-        }
 
         Ok(headers)
     }
