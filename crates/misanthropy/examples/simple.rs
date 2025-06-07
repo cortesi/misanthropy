@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Add a user message
     request.add_user(Content::text(msg));
 
-    println!("Sending request: {}", msg);
+    println!("Sending request: {msg}");
     // Send the request and get the response
     let response = client.messages(&request).await?;
 

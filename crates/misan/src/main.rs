@@ -184,14 +184,13 @@ async fn handle_chat(
                     match event {
                         Ok(event) => {
                             match event {
-                                misanthropy::StreamEvent::ContentBlockDelta { delta, .. } => {
-                                    if let misanthropy::ContentBlockDelta::TextDelta { text } =
-                                        delta
-                                    {
-                                        print!("{}", text);
-                                        io::stdout().flush()?;
-                                        response_content.push_str(&text);
-                                    }
+                                misanthropy::StreamEvent::ContentBlockDelta {
+                                    delta: misanthropy::ContentBlockDelta::TextDelta { text },
+                                    ..
+                                } => {
+                                    print!("{text}");
+                                    io::stdout().flush()?;
+                                    response_content.push_str(&text);
                                 }
                                 misanthropy::StreamEvent::MessageStop => {
                                     println!(); // End the line after the full response
@@ -201,7 +200,7 @@ async fn handle_chat(
                         }
                         Err(e) => {
                             eprintln!("{}", "Error in stream:".red().bold());
-                            eprintln!("{}", e);
+                            eprintln!("{e}");
                             println!("\nAn error occurred. Please try again.");
                             break;
                         }
@@ -213,7 +212,7 @@ async fn handle_chat(
             }
             Err(e) => {
                 eprintln!("{}", "Failed to start stream:".red().bold());
-                eprintln!("{}", e);
+                eprintln!("{e}");
                 println!("An error occurred. Please try again.");
             }
         }
@@ -234,7 +233,7 @@ async fn handle_message(
     info!("Running Message command");
     let request = build_request(args, cli)?;
 
-    debug!("Constructed request: {:#?}", request);
+    debug!("Constructed request: {request:#?}");
 
     match anthropic.messages(&request).await {
         Ok(response) => {
@@ -246,10 +245,10 @@ async fn handle_message(
             }
 
             if cli.verbose >= 2 {
-                debug!("Full response: {:#?}", response);
+                debug!("Full response: {response:#?}");
             }
         }
-        Err(e) => error!("Failed to send message: {}", e),
+        Err(e) => error!("Failed to send message: {e}"),
     }
 
     Ok(())
@@ -267,7 +266,7 @@ async fn handle_stream(
     info!("Running Stream command");
     let request = build_request(args, cli)?.with_stream(true);
 
-    debug!("Constructed request: {:#?}", request);
+    debug!("Constructed request: {request:#?}");
 
     match anthropic.messages_stream(&request) {
         Ok(mut streamed_response) => {
@@ -282,7 +281,7 @@ async fn handle_stream(
                 println!("{}", streamed_response.response.format_content());
             }
         }
-        Err(e) => error!("Failed to start stream: {}", e),
+        Err(e) => error!("Failed to start stream: {e}"),
     }
 
     Ok(())
@@ -372,15 +371,14 @@ fn build_request(
 fn handle_info(cli: &Cli) {
     println!("Misan:");
     println!("\tVersion: {}", env!("CARGO_PKG_VERSION"));
-    println!("\tDefault Model: {}", DEFAULT_MODEL);
-    println!("\tDefault Max Tokens: {}", DEFAULT_MAX_TOKENS);
-    println!("\tAnthropic API Version: {}", ANTHROPIC_API_VERSION);
+    println!("\tDefault Model: {DEFAULT_MODEL}");
+    println!("\tDefault Max Tokens: {DEFAULT_MAX_TOKENS}");
+    println!("\tAnthropic API Version: {ANTHROPIC_API_VERSION}");
     if cli.api_key.is_some() {
         println!("\tAPI Key: Provided via command line argument");
     } else if env::var(ANTHROPIC_API_KEY_ENV).is_ok() {
         println!(
-            "\tAPI Key: Detected in environment variable {}",
-            ANTHROPIC_API_KEY_ENV
+            "\tAPI Key: Detected in environment variable {ANTHROPIC_API_KEY_ENV}"
         );
     } else {
         println!("\tAPI Key: Not detected");

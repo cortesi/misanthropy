@@ -34,10 +34,10 @@ async fn make_request(anthropic: &Anthropic) -> Result<(), Box<dyn std::error::E
 
             match serde_json::from_value::<tools::TextEditor>(tool_use.input.clone()) {
                 Ok(ed) => {
-                    println!("{:#?}", ed);
+                    println!("{ed:#?}");
                 }
                 Err(e) => {
-                    eprintln!("Failed to parse tool input: {}", e);
+                    eprintln!("Failed to parse tool input: {e}");
                     return Ok(());
                 }
             }

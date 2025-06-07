@@ -297,8 +297,7 @@ impl StreamedResponse {
                         if let Some(status) = transport_err.status() {
                             if status.as_u16() == 429 {
                                 return Some(Err(Error::RateLimitExceeded(format!(
-                                    "Rate limit exceeded: {}",
-                                    e
+                                    "Rate limit exceeded: {e}"
                                 ))));
                             }
                         }
@@ -943,7 +942,7 @@ impl Message {
 
         let formatted_content = content_strings.join("\n");
 
-        format!("{}{}", role_prefix, formatted_content)
+        format!("{role_prefix}{formatted_content}")
     }
 }
 
@@ -961,7 +960,7 @@ impl Anthropic {
     pub fn new(api_key: &str) -> Self {
         Self {
             api_key: api_key.to_string(),
-            base_url: format!("https://{}", DEFAULT_API_DOMAIN),
+            base_url: format!("https://{DEFAULT_API_DOMAIN}"),
         }
     }
 

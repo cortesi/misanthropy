@@ -73,7 +73,7 @@ async fn make_request(
                     ));
                 }
                 Err(e) => {
-                    eprintln!("Failed to parse tool input: {}", e);
+                    eprintln!("Failed to parse tool input: {e}");
                     return Ok(());
                 }
             }
