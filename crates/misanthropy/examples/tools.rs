@@ -26,7 +26,7 @@ async fn make_request(
     anthropic: &Anthropic,
     with_tool_choice: bool,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let get_stock_price_tool = Tool::custom::<GetStockPrice>("stockprice");
+    let get_stock_price_tool = Tool::custom::<GetStockPrice>("stockprice")?;
     let get_stock_price_tool_name = match &get_stock_price_tool {
         Tool::Custom { name, .. } => name.clone(),
         Tool::TextEditor { name, .. } => name.clone(),

@@ -6,7 +6,7 @@ use futures_util::StreamExt;
 use log::trace;
 use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
 use reqwest_eventsource::{Event, EventSource};
-use schemars::{schema::RootSchema, schema_for, JsonSchema};
+use schemars::{schema_for, JsonSchema, Schema};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -110,7 +110,7 @@ pub enum Tool {
         description: String,
 
         /// The JSON schema defining the structure of the tool's input.
-        input_schema: RootSchema,
+        input_schema: Schema,
 
         /// Optional cache control settings for the tool.
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -135,21 +135,20 @@ impl Tool {
     /// Creates a new custom tool from a type implementing JsonSchema.
     ///
     /// The tool's name and description are automatically derived from the input type.
-    pub fn custom<T: JsonSchema>(name: &str) -> Self {
-        let schema = schema_for!(T);
-        let description = schema
-            .schema
-            .metadata
-            .as_ref()
-            .and_then(|m| m.description.clone())
-            .unwrap_or_else(|| "No description provided".to_string());
+    pub fn custom<T: JsonSchema>(name: &str) -> Result<Self> {
+        let input_schema = schema_for!(T);
+        let description = if let Some(d) = input_schema.get("description") {
+            d.as_str().unwrap_or("").to_string()
+        } else {
+            "".to_string()
+        };
 
-        Self::Custom {
+        Ok(Self::Custom {
             name: name.into(),
             description,
-            input_schema: schema,
+            input_schema,
             cache_control: None,
-        }
+        })
     }
 }
 
@@ -279,7 +278,7 @@ impl StreamedResponse {
                 Ok(Event::Open) => continue,
                 Ok(Event::Message(message)) => match serde_json::from_str(&message.data) {
                     Ok(stream_event) => {
-                        trace!("stream event: {:#?}", stream_event);
+                        trace!("stream event: {stream_event:#?}");
                         self.merge_event(&stream_event);
 
                         if matches!(stream_event, StreamEvent::MessageStop) {
@@ -1064,7 +1063,7 @@ mod tests {
     #[test]
     fn test_tool_creation_and_serialization() {
         // Create a tool
-        let tool = Tool::custom::<TestInput>("testtool");
+        let tool = Tool::custom::<TestInput>("testtool").unwrap();
 
         // Serialize the tool to JSON
         let json = serde_json::to_value(&tool).expect("Failed to serialize Tool to JSON");
@@ -1111,7 +1110,7 @@ mod tests {
         assert!(enum_field.is_object());
 
         // Check the definitions for the enum
-        let definitions = &schema_obj["definitions"];
+        let definitions = &schema_obj["$defs"];
         assert!(definitions.is_object());
         let defs_obj = definitions.as_object().unwrap();
 
