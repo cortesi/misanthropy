@@ -748,6 +748,27 @@ fn is_false(b: &bool) -> bool {
     !(*b)
 }
 
+/// Configuration for enabling Claude's extended thinking mode.
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct Thinking {
+    /// The type of thinking mode. Must be "enabled".
+    #[serde(rename = "type")]
+    pub thinking_type: String,
+    /// The number of tokens allocated for the thinking process.
+    /// Must be at least 1024 and less than max_tokens.
+    pub budget_tokens: u32,
+}
+
+impl Thinking {
+    /// Creates a new Thinking configuration with the specified token budget.
+    pub fn new(budget_tokens: u32) -> Self {
+        Self {
+            thinking_type: "enabled".to_string(),
+            budget_tokens,
+        }
+    }
+}
+
 /// A request to the Anthropic API for message generation.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MessagesRequest {
@@ -774,6 +795,9 @@ pub struct MessagesRequest {
     /// Optional list of stop sequences to end generation.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stop_sequences: Vec<String>,
+    /// Optional thinking configuration for extended reasoning.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thinking: Option<Thinking>,
 }
 
 impl Default for MessagesRequest {
@@ -788,6 +812,7 @@ impl Default for MessagesRequest {
             tools: Vec::new(),
             tool_choice: ToolChoice::default(),
             stop_sequences: Vec::new(),
+            thinking: None,
         }
     }
 }
@@ -903,6 +928,12 @@ impl MessagesRequest {
     /// Adds a stop sequence to the request.
     pub fn add_stop_sequence(&mut self, stop_sequence: &str) {
         self.stop_sequences.push(stop_sequence.into());
+    }
+
+    /// Enables thinking mode with the specified token budget.
+    pub fn with_thinking(mut self, budget_tokens: u32) -> Self {
+        self.thinking = Some(Thinking::new(budget_tokens));
+        self
     }
 
     /// Add a user message to the conversation history. Appends the content to the last user
@@ -1179,5 +1210,37 @@ mod tests {
 
         let deserialized: CacheControl = serde_json::from_str(&serialized).unwrap();
         assert_eq!(deserialized, CacheControl::Ephemeral);
+    }
+
+    #[test]
+    fn test_messages_request_thinking_field() {
+        // Test default value
+        let request = MessagesRequest::default();
+        assert_eq!(request.thinking, None);
+
+        // Test with thinking enabled
+        let request_with_thinking = MessagesRequest::default().with_thinking(1024);
+        assert!(request_with_thinking.thinking.is_some());
+        let thinking = request_with_thinking.thinking.as_ref().unwrap();
+        assert_eq!(thinking.thinking_type, "enabled");
+        assert_eq!(thinking.budget_tokens, 1024);
+
+        // Test serialization - thinking field should be omitted when None
+        let request_json = serde_json::to_value(&request).unwrap();
+        assert!(!request_json.as_object().unwrap().contains_key("thinking"));
+
+        // Test serialization - thinking field should be present when Some
+        let request_with_thinking_json = serde_json::to_value(&request_with_thinking).unwrap();
+        assert!(request_with_thinking_json["thinking"].is_object());
+        assert_eq!(request_with_thinking_json["thinking"]["type"], json!("enabled"));
+        assert_eq!(request_with_thinking_json["thinking"]["budget_tokens"], json!(1024));
+
+        // Test deserialization
+        let json_str = r#"{"model":"claude-sonnet-4-20250514","max_tokens":2048,"messages":[],"stream":false,"thinking":{"type":"enabled","budget_tokens":1024}}"#;
+        let deserialized: MessagesRequest = serde_json::from_str(json_str).unwrap();
+        assert!(deserialized.thinking.is_some());
+        let thinking = deserialized.thinking.as_ref().unwrap();
+        assert_eq!(thinking.thinking_type, "enabled");
+        assert_eq!(thinking.budget_tokens, 1024);
     }
 }
