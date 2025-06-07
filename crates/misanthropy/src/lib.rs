@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 /// Default Anthropic AI model identifier used for API requests.
-pub const DEFAULT_MODEL: &str = "claude-3-7-sonnet-latest";
+pub const DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
 
 /// Default maximum number of tokens for AI model responses.
 pub const DEFAULT_MAX_TOKENS: u32 = 1024;
@@ -24,13 +24,20 @@ pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 
 const DEFAULT_API_DOMAIN: &str = "api.anthropic.com";
 
+/// Name of the built-in text editor tool for Claude 4
+pub const TEXT_EDITOR_4: &str = "text_editor_20250429";
+
 /// Name of the built-in text editor tool for Claude 3.7
 pub const TEXT_EDITOR_37: &str = "text_editor_20250124";
 
 /// Name of the built-in text editor tool for Claude 3.5
 pub const TEXT_EDITOR_35: &str = "text_editor_20241022";
 
-pub const TEXT_EDITOR_NAME: &str = "str_replace_editor";
+/// Name of the built-in text editor tool for Claude 3.x
+pub const TEXT_EDITOR_NAME_3: &str = "str_replace_editor";
+
+/// Name of the built-in text editor tool for Claude 4.x
+pub const TEXT_EDITOR_NAME_4: &str = "str_replace_based_edit_tool";
 
 mod error;
 pub mod tools;
@@ -64,8 +71,11 @@ pub enum ToolChoice {
     /// Allow the model to use any available tool.
     Any,
     /// Instruct the model to use a specific tool.
-    Tool { name: String },
-    /// Instruct the model not to use any tools
+    Tool {
+        /// The name of the specific tool to use.
+        name: String,
+    },
+    /// Instruct the model not to use any tools.
     None,
 }
 
@@ -199,8 +209,10 @@ pub enum StreamEvent {
 /// An error that has occurred as part of a stream.
 #[derive(Debug, Deserialize)]
 pub struct StreamError {
+    /// The type of stream error.
     #[serde(rename = "type")]
     pub type_: String,
+    /// The error message.
     pub message: String,
 }
 
@@ -813,11 +825,19 @@ impl MessagesRequest {
     ///
     /// * `name` - The name of the text editor tool, e.g. `text_editor`
     /// * `typ` - The type of the text editor. This must match the model, and should be either
-    ///   `TEXT_EDITOR_35` or `TEXT_EDITOR_37`.
+    ///   `TEXT_EDITOR_35`, `TEXT_EDITOR_37`, `TEXT_EDITOR_4".
     pub fn with_text_editor(mut self, typ: impl Into<String>) -> Self {
+        let typ = typ.into();
+        let name = if typ == TEXT_EDITOR_4 {
+            TEXT_EDITOR_NAME_4
+        } else {
+            TEXT_EDITOR_NAME_3
+        }
+        .into();
+
         self.tools.push(Tool::TextEditor {
-            name: TEXT_EDITOR_NAME.into(),
-            typ: typ.into(),
+            name,
+            typ,
             cache_control: None,
         });
         self
@@ -896,7 +916,9 @@ impl MessagesRequest {
 /// A single message in a conversation, with a role and content.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Message {
+    /// The role of the message sender (user or assistant).
     pub role: Role,
+    /// The content blocks within this message.
     pub content: Vec<Content>,
 }
 
