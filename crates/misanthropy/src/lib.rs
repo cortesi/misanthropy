@@ -843,62 +843,79 @@ impl MessagesRequest {
         self
     }
 
+    /// Adds a custom tool to the request.
     pub fn with_tool(mut self, tool: Tool) -> Self {
         self.tools.push(tool);
         self
     }
 
+    /// Sets the tool choice for the AI model.
     pub fn with_tool_choice(mut self, tool_choice: ToolChoice) -> Self {
         self.tool_choice = tool_choice;
         self
     }
 
+    /// Sets the AI model to use for generating the response.
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
         self.model = model.into();
         self
     }
 
+    /// Sets the temperature for the AI model's response generation.
     pub fn with_temperature(mut self, temperature: f32) -> Self {
         self.temperature = Some(temperature);
         self
     }
 
+    /// Sets the maximum number of tokens to generate in the response.
     pub fn with_max_tokens(mut self, max_tokens: u32) -> Self {
         self.max_tokens = max_tokens;
         self
     }
 
+    /// Sets whether the request should return a streaming response.
     pub fn with_stream(mut self, stream: bool) -> Self {
         self.stream = stream;
         self
     }
 
+    /// Sets the messages for the request.
     pub fn with_system(mut self, system: Vec<Content>) -> Self {
         self.system = system;
         self
     }
 
+    /// Adds a system message to the request, appending it to the existing system messages.
     pub fn add_system(&mut self, content: Content) {
         self.system.push(content);
     }
 
+    /// Sets the stop sequences for the request.
     pub fn with_stop_sequences(mut self, stop_sequences: Vec<String>) -> Self {
         self.stop_sequences = stop_sequences;
         self
     }
 
+    /// Adds a stop sequence to the request.
     pub fn add_stop_sequence(&mut self, stop_sequence: &str) {
         self.stop_sequences.push(stop_sequence.into());
     }
 
+    /// Add a user message to the conversation history. Appends the content to the last user
+    /// message if we're still in the same role, otherwise creates a new user message.
     pub fn add_user(&mut self, content: Content) {
         self.add_content(Role::User, content);
     }
 
+    /// Add an assistant message to the conversation history. Appends the content to the last
+    /// assistant message if we're still in the same role, otherwise creates a new assistant
+    /// message.
     pub fn add_assistant(&mut self, content: Content) {
         self.add_content(Role::Assistant, content);
     }
 
+    /// Add a message with a specific role and content to the conversation history. Appends the
+    /// content to the last message of that role if it exists, otherwise creates a new message.
     fn add_content(&mut self, role: Role, content: Content) {
         if let Some(last_message) = self.messages.last_mut() {
             if last_message.role == role {
