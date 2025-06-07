@@ -127,11 +127,11 @@ pub enum Tool {
         cache_control: Option<CacheControl>,
     },
     TextEditor {
-        /// Must be equal to the constant `TEXT_EDITOR_NAME`.
+        /// Must be equal to `TEXT_EDITOR_NAME_3` or `TEXT_EDITOR_NAME_4`.
         name: String,
 
         /// The type of the text editor tool. This must match the model, and should be either
-        /// equal to the constants in `TEXT_EDITOR_35` or `TEXT_EDITOR_37`.
+        /// equal to the constants in `TEXT_EDITOR_35`, `TEXT_EDITOR_37`, `TEXT_EDITOR_4`.
         #[serde(rename = "type")]
         typ: String,
 
@@ -597,6 +597,9 @@ pub struct ToolResult {
     /// Optional cache control settings for the tool result.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_control: Option<CacheControl>,
+    /// Is the response an error?
+    #[serde(skip_serializing_if = "is_false")]
+    pub is_error: bool,
 }
 
 impl ToolResult {
@@ -605,6 +608,7 @@ impl ToolResult {
             tool_use_id,
             content,
             cache_control: None,
+            is_error: false,
         }
     }
 }
@@ -683,6 +687,7 @@ impl Content {
             tool_use_id: tool_use.id.clone(),
             content: content.into(),
             cache_control: None,
+            is_error: false,
         })
     }
 
@@ -742,6 +747,10 @@ impl Usage {
 
 fn is_default_tool_choice(choice: &ToolChoice) -> bool {
     *choice == ToolChoice::Auto
+}
+
+fn is_false(b: &bool) -> bool {
+    !(*b)
 }
 
 /// A request to the Anthropic API for message generation.
