@@ -594,9 +594,6 @@ pub struct ToolResult {
     pub tool_use_id: String,
     /// The output of the tool. Arbitrary format, but should be intelligible to the assistant.
     pub content: String,
-    /// Optional cache control settings for the tool result.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub cache_control: Option<CacheControl>,
     /// Is the response an error?
     #[serde(skip_serializing_if = "is_false")]
     pub is_error: bool,
@@ -607,7 +604,6 @@ impl ToolResult {
         Self {
             tool_use_id,
             content,
-            cache_control: None,
             is_error: false,
         }
     }
@@ -686,7 +682,6 @@ impl Content {
         Content::ToolResult(ToolResult {
             tool_use_id: tool_use.id.clone(),
             content: content.into(),
-            cache_control: None,
             is_error: false,
         })
     }
