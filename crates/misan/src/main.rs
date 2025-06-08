@@ -377,9 +377,7 @@ fn handle_info(cli: &Cli) {
     if cli.api_key.is_some() {
         println!("\tAPI Key: Provided via command line argument");
     } else if env::var(ANTHROPIC_API_KEY_ENV).is_ok() {
-        println!(
-            "\tAPI Key: Detected in environment variable {ANTHROPIC_API_KEY_ENV}"
-        );
+        println!("\tAPI Key: Detected in environment variable {ANTHROPIC_API_KEY_ENV}");
     } else {
         println!("\tAPI Key: Not detected");
     }

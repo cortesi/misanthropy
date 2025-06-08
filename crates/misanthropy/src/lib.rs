@@ -839,6 +839,15 @@ impl Thinking {
     }
 }
 
+/// Metadata for tracking user interactions.
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+pub struct Metadata {
+    /// An external identifier for the user. Should be a uuid, hash value, or other opaque identifier.
+    /// Maximum length is 256 characters.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_id: Option<String>,
+}
+
 /// A request to the Anthropic API for message generation.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MessagesRequest {
@@ -868,6 +877,20 @@ pub struct MessagesRequest {
     /// Optional thinking configuration for extended reasoning.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thinking: Option<Thinking>,
+    /// Optional metadata for tracking user interactions.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<Metadata>,
+    /// Only sample from the top K options for each subsequent token.
+    /// Used to remove long tail low probability responses.
+    /// Recommended for advanced use cases only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_k: Option<u32>,
+    /// Use nucleus sampling. In nucleus sampling, we compute the cumulative distribution over
+    /// all the options for each subsequent token in decreasing probability order and cut it
+    /// off once it exceeds a particular probability specified by top_p.
+    /// Recommended for advanced use cases only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub top_p: Option<f32>,
 }
 
 impl Default for MessagesRequest {
@@ -883,6 +906,9 @@ impl Default for MessagesRequest {
             tool_choice: ToolChoice::default(),
             stop_sequences: Vec::new(),
             thinking: None,
+            metadata: None,
+            top_k: None,
+            top_p: None,
         }
     }
 }
@@ -1003,6 +1029,29 @@ impl MessagesRequest {
     /// Enables thinking mode with the specified token budget.
     pub fn with_thinking(mut self, budget_tokens: u32) -> Self {
         self.thinking = Some(Thinking::new(budget_tokens));
+        self
+    }
+
+    /// Sets the metadata for tracking user interactions.
+    pub fn with_metadata(mut self, user_id: impl Into<String>) -> Self {
+        self.metadata = Some(Metadata {
+            user_id: Some(user_id.into()),
+        });
+        self
+    }
+
+    /// Sets the top_k sampling parameter.
+    /// Only sample from the top K options for each subsequent token.
+    pub fn with_top_k(mut self, top_k: u32) -> Self {
+        self.top_k = Some(top_k);
+        self
+    }
+
+    /// Sets the top_p (nucleus sampling) parameter.
+    /// Recommended for advanced use cases only. You usually only need to use one of
+    /// temperature, top_k, or top_p.
+    pub fn with_top_p(mut self, top_p: f32) -> Self {
+        self.top_p = Some(top_p);
         self
     }
 
@@ -1399,5 +1448,71 @@ mod tests {
             }
             _ => panic!("Expected Content::Thinking"),
         }
+    }
+
+    #[test]
+    fn test_messages_request_metadata_top_k_top_p() {
+        // Test default values
+        let request = MessagesRequest::default();
+        assert_eq!(request.metadata, None);
+        assert_eq!(request.top_k, None);
+        assert_eq!(request.top_p, None);
+
+        // Test with metadata
+        let request_with_metadata = MessagesRequest::default().with_metadata("user-123-uuid");
+        assert!(request_with_metadata.metadata.is_some());
+        let metadata = request_with_metadata.metadata.as_ref().unwrap();
+        assert_eq!(metadata.user_id, Some("user-123-uuid".to_string()));
+
+        // Test with top_k
+        let request_with_top_k = MessagesRequest::default().with_top_k(10);
+        assert_eq!(request_with_top_k.top_k, Some(10));
+
+        // Test with top_p
+        let request_with_top_p = MessagesRequest::default().with_top_p(0.9);
+        assert_eq!(request_with_top_p.top_p, Some(0.9));
+
+        // Test serialization - fields should be omitted when None
+        let request_json = serde_json::to_value(&request).unwrap();
+        assert!(!request_json.as_object().unwrap().contains_key("metadata"));
+        assert!(!request_json.as_object().unwrap().contains_key("top_k"));
+        assert!(!request_json.as_object().unwrap().contains_key("top_p"));
+
+        // Test serialization with all fields set
+        let full_request = MessagesRequest::default()
+            .with_metadata("test-user-id")
+            .with_top_k(5)
+            .with_top_p(0.95);
+
+        let full_request_json = serde_json::to_value(&full_request).unwrap();
+        assert!(full_request_json["metadata"].is_object());
+        assert_eq!(
+            full_request_json["metadata"]["user_id"],
+            json!("test-user-id")
+        );
+        assert_eq!(full_request_json["top_k"], json!(5));
+        // Check top_p as a float due to potential precision issues
+        assert!(full_request_json["top_p"].is_number());
+        let top_p_value = full_request_json["top_p"].as_f64().unwrap();
+        assert!((top_p_value - 0.95).abs() < 0.001);
+
+        // Test deserialization
+        let json_str = r#"{
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 1024,
+            "messages": [],
+            "stream": false,
+            "metadata": {"user_id": "abc-123"},
+            "top_k": 20,
+            "top_p": 0.85
+        }"#;
+        let deserialized: MessagesRequest = serde_json::from_str(json_str).unwrap();
+        assert!(deserialized.metadata.is_some());
+        assert_eq!(
+            deserialized.metadata.unwrap().user_id,
+            Some("abc-123".to_string())
+        );
+        assert_eq!(deserialized.top_k, Some(20));
+        assert_eq!(deserialized.top_p, Some(0.85));
     }
 }
