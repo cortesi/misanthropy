@@ -1,3 +1,14 @@
+8 June 2025 - v0.0.8
+
+- Support extended thinking, including streaming responses
+- Support the text editor tool API
+- Return `RateLimitExceeded` error when rate limit is exceeded
+- Add `ToolResult::is_error`
+- Default model is now Claude Sonnet 4
+- Support top_k, top_p and metadata on MessagesRequest
+- Update dependencies
+
+
 28 August 2024 - v0.0.7
 
 - Add the `cache_control` field to various API objects. 

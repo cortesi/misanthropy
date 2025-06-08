@@ -14,6 +14,7 @@ Claude and other Anthropic models. It consists of two main components:
 ## Features
 
 - Simple, idiomatic Rust interface for the Anthropic API
+- Support extended thinking and tool usage
 - Support for text and image content in messages
 - Support for streaming real-time responses
 - Configurable client with defaults for model and token limits
