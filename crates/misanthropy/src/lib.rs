@@ -231,6 +231,22 @@ pub enum ContentBlockDelta {
         /// The partial JSON string to be appended or merged.
         partial_json: String,
     },
+    /// An update to thinking content in a streaming response.
+    ThinkingDelta {
+        /// The thinking text to be appended.
+        thinking: String,
+    },
+}
+
+impl ContentBlockDelta {
+    /// Returns a string representation of the delta type.
+    pub fn typ(&self) -> &'static str {
+        match self {
+            Self::TextDelta { .. } => "text_delta",
+            Self::InputJsonDelta { .. } => "input_json_delta",
+            Self::ThinkingDelta { .. } => "thinking_delta",
+        }
+    }
 }
 
 /// Incremental update to a message in a streaming response.
@@ -345,20 +361,33 @@ impl StreamedResponse {
             }
             StreamEvent::ContentBlockDelta { index, delta } => {
                 if let Some(block) = self.response.content.get_mut(*index) {
-                    match block {
-                        Content::Text(text) => match delta {
-                            ContentBlockDelta::TextDelta { text: delta_text } => {
-                                text.text.push_str(delta_text);
-                            }
-                            ContentBlockDelta::InputJsonDelta { .. } => {}
-                        },
-                        Content::Image(_) => {}
-                        Content::ToolUse(_) => {
+                    match (block, delta) {
+                        (
+                            Content::Text(text),
+                            ContentBlockDelta::TextDelta { text: delta_text },
+                        ) => {
+                            text.text.push_str(delta_text);
+                        }
+                        (
+                            Content::Thinking(thinking_content),
+                            ContentBlockDelta::ThinkingDelta {
+                                thinking: delta_thinking,
+                            },
+                        ) => {
+                            thinking_content.thinking.push_str(delta_thinking);
+                        }
+                        (Content::ToolUse(_), _) => {
                             unimplemented!(
                                 "Partial updates for ToolUse blocks are not supported yet"
                             );
                         }
-                        Content::ToolResult(_) => {}
+                        (block, delta) => {
+                            log::warn!(
+                                "Received {} for {} content block at index {index}",
+                                delta.typ(),
+                                block.typ()
+                            );
+                        }
                     }
                 }
             }
@@ -544,6 +573,17 @@ impl MessagesResponse {
                     ));
                     has_user_messages = true; // Always show roles if there are tool results
                 }
+                Content::Thinking(thinking) => {
+                    output.push_str(&format!(
+                        "{}: [Thinking: {}]\n",
+                        if self.role == Role::User {
+                            "user"
+                        } else {
+                            "assistant"
+                        },
+                        thinking.thinking
+                    ));
+                }
             }
         }
 
@@ -626,6 +666,23 @@ impl Text {
     }
 }
 
+/// Thinking content in a message.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ThinkingContent {
+    pub thinking: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub signature: Option<String>,
+}
+
+impl ThinkingContent {
+    pub fn new(thinking: impl Into<String>) -> Self {
+        Self {
+            thinking: thinking.into(),
+            signature: None,
+        }
+    }
+}
+
 /// An image with its source information in a message.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Image {
@@ -655,9 +712,22 @@ pub enum Content {
     ToolUse(ToolUse),
     /// The result to a tool used by the AI.
     ToolResult(ToolResult),
+    /// Thinking content from the AI.
+    Thinking(ThinkingContent),
 }
 
 impl Content {
+    /// Returns a string representation of the content type.
+    pub fn typ(&self) -> &'static str {
+        match self {
+            Self::Text(_) => "text",
+            Self::Image(_) => "image",
+            Self::ToolUse(_) => "tool_use",
+            Self::ToolResult(_) => "tool_result",
+            Self::Thinking(_) => "thinking",
+        }
+    }
+
     /// Creates a new text content block.
     pub fn text(text: impl Into<String>) -> Self {
         Content::Text(Text::new(text))
@@ -1011,6 +1081,9 @@ impl Message {
                         tool_result.tool_use_id, tool_result.content
                     )
                 }
+                Content::Thinking(thinking) => {
+                    format!("[Thinking: {}]", thinking.thinking)
+                }
             })
             .collect();
 
@@ -1232,8 +1305,14 @@ mod tests {
         // Test serialization - thinking field should be present when Some
         let request_with_thinking_json = serde_json::to_value(&request_with_thinking).unwrap();
         assert!(request_with_thinking_json["thinking"].is_object());
-        assert_eq!(request_with_thinking_json["thinking"]["type"], json!("enabled"));
-        assert_eq!(request_with_thinking_json["thinking"]["budget_tokens"], json!(1024));
+        assert_eq!(
+            request_with_thinking_json["thinking"]["type"],
+            json!("enabled")
+        );
+        assert_eq!(
+            request_with_thinking_json["thinking"]["budget_tokens"],
+            json!(1024)
+        );
 
         // Test deserialization
         let json_str = r#"{"model":"claude-sonnet-4-20250514","max_tokens":2048,"messages":[],"stream":false,"thinking":{"type":"enabled","budget_tokens":1024}}"#;
@@ -1242,5 +1321,83 @@ mod tests {
         let thinking = deserialized.thinking.as_ref().unwrap();
         assert_eq!(thinking.thinking_type, "enabled");
         assert_eq!(thinking.budget_tokens, 1024);
+    }
+
+    #[test]
+    fn test_content_block_delta_thinking() {
+        // Test deserialization of ThinkingDelta as part of ContentBlockDelta
+        let json_str = r#"{
+            "type": "thinking_delta",
+            "thinking": "\n2. 453 = 400 + 50 + 3"
+        }"#;
+
+        let delta: ContentBlockDelta = serde_json::from_str(json_str).unwrap();
+        match delta {
+            ContentBlockDelta::ThinkingDelta { thinking } => {
+                assert_eq!(thinking, "\n2. 453 = 400 + 50 + 3");
+            }
+            _ => panic!("Expected ThinkingDelta"),
+        }
+
+        // Test deserialization of a complete content_block_delta event with thinking
+        let event_json = r#"{
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {
+                "type": "thinking_delta",
+                "thinking": "\n2. 453 = 400 + 50 + 3"
+            }
+        }"#;
+
+        let event: StreamEvent = serde_json::from_str(event_json).unwrap();
+        match event {
+            StreamEvent::ContentBlockDelta { index, delta } => {
+                assert_eq!(index, 0);
+                match delta {
+                    ContentBlockDelta::ThinkingDelta { thinking } => {
+                        assert_eq!(thinking, "\n2. 453 = 400 + 50 + 3");
+                    }
+                    _ => panic!("Expected ThinkingDelta"),
+                }
+            }
+            _ => panic!("Expected ContentBlockDelta event"),
+        }
+    }
+
+    #[test]
+    fn test_content_thinking() {
+        // Test Content::Thinking serialization and deserialization
+        let thinking_content = Content::Thinking(ThinkingContent::new("Let me analyze this..."));
+
+        let json = serde_json::to_value(&thinking_content).unwrap();
+        assert_eq!(json["type"], "thinking");
+        assert_eq!(json["thinking"], "Let me analyze this...");
+        assert!(json.get("signature").is_none()); // Should be omitted when None
+
+        // Test deserialization without signature
+        let json_str = r#"{"type": "thinking", "thinking": "Let me analyze this..."}"#;
+        let deserialized: Content = serde_json::from_str(json_str).unwrap();
+        match deserialized {
+            Content::Thinking(thinking) => {
+                assert_eq!(thinking.thinking, "Let me analyze this...");
+                assert_eq!(thinking.signature, None);
+            }
+            _ => panic!("Expected Content::Thinking"),
+        }
+
+        // Test deserialization with signature
+        let json_str_with_sig = r#"{
+            "type": "thinking",
+            "thinking": "Let me analyze this step by step...",
+            "signature": "WaUjzkypQ2mUEVM36O2TxuC06KN8xyfbJwyem2dw3URve/op91XWHOEBLLqIOMfFG/UvLEczmEsUjavL...."
+        }"#;
+        let deserialized: Content = serde_json::from_str(json_str_with_sig).unwrap();
+        match deserialized {
+            Content::Thinking(thinking) => {
+                assert_eq!(thinking.thinking, "Let me analyze this step by step...");
+                assert_eq!(thinking.signature, Some("WaUjzkypQ2mUEVM36O2TxuC06KN8xyfbJwyem2dw3URve/op91XWHOEBLLqIOMfFG/UvLEczmEsUjavL....".to_string()));
+            }
+            _ => panic!("Expected Content::Thinking"),
+        }
     }
 }
