@@ -4,3 +4,4 @@ docs/book/
 crates/ui/dist
 .cargo/
 .venv
+.claude

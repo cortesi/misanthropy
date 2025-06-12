@@ -1,8 +1,8 @@
-# Misanthropy
-
+![Discord](https://img.shields.io/discord/1381424110831145070?style=flat-square&logo=rust&link=https%3A%2F%2Fdiscord.gg%2FfHmRmuBDxF)
 [![Crates.io](https://img.shields.io/crates/v/misanthropy)](https://crates.io/crates/misanthropy)
 [![docs.rs](https://img.shields.io/docsrs/misanthropy)](https://docs.rs/misanthropy)
-[![Rust](https://img.shields.io/badge/rust-1.75%2B-blue.svg?logo=rust)](https://www.rust-lang.org)
+
+# Misanthropy
 
 Misanthropy is set of Rust bindings for Anthropic API, providing easy access to
 Claude and other Anthropic models. It consists of two main components:
@@ -10,6 +10,14 @@ Claude and other Anthropic models. It consists of two main components:
 1. `misanthropy`: A Rust client library for the Anthropic API
 2. `misan`: A command-line interface (CLI) tool for quick interactions with the API
 
+---
+
+## Community
+
+Want to contribute? Have ideas or feature requests? Come tell us about it on
+[Discord](https://discord.gg/fHmRmuBDxF). 
+
+---
 
 ## Features
 
@@ -20,6 +28,7 @@ Claude and other Anthropic models. It consists of two main components:
 - Configurable client with defaults for model and token limits
 - CLI tool for quick interactions with the API from the command line
 
+---
 
 ## Usage
 
@@ -58,10 +67,14 @@ Anthropic API. For usage instructions, run:
 misan --help
 ```
 
+---
+
 ## Configuration
 
 - `ANTHROPIC_API_KEY`: Set this environment variable with your Anthropic API key.
 - Default model and max tokens can be set when creating the `Anthropic` client or overridden per request.
+
+---
 
 ## Advanced Features
 
@@ -81,8 +94,6 @@ while let Some(event) = stream.next().await {
     }
 }
 ```
-
-## Advanced Features
 
 ### Using Tools
 
@@ -149,14 +160,5 @@ if let Some(tool_use) = response.content.iter().find_map(|content| {
 
 This approach allows you to define strongly-typed tool inputs that the AI can
 use, while also providing a way to handle the tool usage in your code.
-
-
-
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-
 
 
