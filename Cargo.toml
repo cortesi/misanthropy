@@ -15,3 +15,14 @@ members = ["crates/*"]
 
 [workspace.dependencies]
 misanthropy = { version = "0.0.8", path = "crates/misanthropy" }
+
+[workspace.metadata.nanocode]
+schema-version = 1
+requires-nanocode = ">=0.1, <0.2"
+features = "all"
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false

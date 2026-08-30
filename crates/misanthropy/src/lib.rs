@@ -4,11 +4,11 @@ use std::{env, fs, path::Path};
 use base64::prelude::*;
 use futures_util::StreamExt;
 use log::trace;
-use reqwest::header::{HeaderMap, HeaderValue, CONTENT_TYPE};
+use reqwest::header::{CONTENT_TYPE, HeaderMap, HeaderValue};
 use reqwest_eventsource::{Event, EventSource};
-use schemars::{schema_for, JsonSchema, Schema};
+use schemars::{JsonSchema, Schema, schema_for};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 /// Default Anthropic AI model identifier used for API requests.
 pub const DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
@@ -86,8 +86,8 @@ pub enum ToolChoice {
 ///
 /// # Usage
 ///
-/// To create a new custom tool, define a struct that represents the tool's input,
-/// implement `JsonSchema` for it, and use the `Tool::custom()` method:
+/// To create a new custom tool, define a struct that represents the tool's
+/// input, implement `JsonSchema` for it, and use the `Tool::custom()` method:
 ///
 /// ```ignore
 /// use schemars::JsonSchema;
@@ -106,8 +106,8 @@ pub enum ToolChoice {
 /// ```
 ///
 /// The resulting tool will have its name set to "GetWeather", its description
-/// set to "Get the current weather for a location.", and its input schema derived
-/// from the `GetWeather` struct.
+/// set to "Get the current weather for a location.", and its input schema
+/// derived from the `GetWeather` struct.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum Tool {
@@ -130,8 +130,9 @@ pub enum Tool {
         /// Must be equal to `TEXT_EDITOR_NAME_3` or `TEXT_EDITOR_NAME_4`.
         name: String,
 
-        /// The type of the text editor tool. This must match the model, and should be either
-        /// equal to the constants in `TEXT_EDITOR_35`, `TEXT_EDITOR_37`, `TEXT_EDITOR_4`.
+        /// The type of the text editor tool. This must match the model, and
+        /// should be either equal to the constants in `TEXT_EDITOR_35`,
+        /// `TEXT_EDITOR_37`, `TEXT_EDITOR_4`.
         #[serde(rename = "type")]
         typ: String,
 
@@ -144,7 +145,8 @@ pub enum Tool {
 impl Tool {
     /// Creates a new custom tool from a type implementing JsonSchema.
     ///
-    /// The tool's name and description are automatically derived from the input type.
+    /// The tool's name and description are automatically derived from the input
+    /// type.
     pub fn custom<T: JsonSchema>(name: &str) -> Result<Self> {
         let input_schema = schema_for!(T);
         let description = if let Some(d) = input_schema.get("description") {
@@ -265,8 +267,9 @@ pub struct MessageDelta {
 /// received as streaming events. It encapsulates an `EventSource` for receiving
 /// events and maintains the current state of the response.
 ///
-/// The stream is considered complete when `next()` returns `None` or a `MessageStop`
-/// event is received, at which point the `event_source` is dropped.
+/// The stream is considered complete when `next()` returns `None` or a
+/// `MessageStop` event is received, at which point the `event_source` is
+/// dropped.
 pub struct StreamedResponse {
     /// The accumulated response data from the stream.
     pub response: MessagesResponse,
@@ -284,20 +287,24 @@ impl StreamedResponse {
 
     /// Retrieves the next event from the stream.
     ///
-    /// This method asynchronously fetches the next `StreamEvent` from the underlying
-    /// `EventSource`. It handles the internal state of the stream, including merging
-    /// events into the response and managing stream completion.
+    /// This method asynchronously fetches the next `StreamEvent` from the
+    /// underlying `EventSource`. It handles the internal state of the
+    /// stream, including merging events into the response and managing
+    /// stream completion.
     ///
     /// # Returns
     ///
     /// - `Some(Ok(StreamEvent))` if an event was successfully retrieved.
-    /// - `Some(Err(...))` if an error occurred while fetching or parsing an event.
-    /// - `None` if the stream has been completed or a `MessageStop` event was previously received.
+    /// - `Some(Err(...))` if an error occurred while fetching or parsing an
+    ///   event.
+    /// - `None` if the stream has been completed or a `MessageStop` event was
+    ///   previously received.
     ///
     /// # Note
     ///
-    /// After receiving a `MessageStop` event or when the stream is otherwise completed,
-    /// this method will drop the internal `EventSource` and return `None` on subsequent calls.
+    /// After receiving a `MessageStop` event or when the stream is otherwise
+    /// completed, this method will drop the internal `EventSource` and
+    /// return `None` on subsequent calls.
     pub async fn next(&mut self) -> Option<Result<StreamEvent>> {
         let event_source = self.event_source.as_mut()?;
 
@@ -427,13 +434,15 @@ pub enum ApiErrorType {
     InvalidRequestError,
     /// There's an issue with the API key (HTTP 401).
     AuthenticationError,
-    /// The API key does not have permission to use the specified resource (HTTP 403).
+    /// The API key does not have permission to use the specified resource (HTTP
+    /// 403).
     PermissionError,
     /// The requested resource was not found (HTTP 404).
     NotFoundError,
     /// The account has hit a rate limit (HTTP 429).
     RateLimitError,
-    /// An unexpected error has occurred internal to Anthropic's systems (HTTP 500).
+    /// An unexpected error has occurred internal to Anthropic's systems (HTTP
+    /// 500).
     ApiError,
     /// Anthropic's API is temporarily overloaded (HTTP 529).
     OverloadedError,
@@ -464,7 +473,8 @@ pub struct ApiError {
     pub message: String,
 }
 
-/// The role of a participant in a conversation. Can be either a user or an assistant.
+/// The role of a participant in a conversation. Can be either a user or an
+/// assistant.
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum Role {
@@ -482,20 +492,20 @@ pub enum StopReason {
     /// The model reached a natural stopping point in its generation.
     EndTurn,
 
-    /// The generation was stopped because it reached the maximum number of tokens
-    /// specified in the request or the model's maximum limit.
+    /// The generation was stopped because it reached the maximum number of
+    /// tokens specified in the request or the model's maximum limit.
     MaxTokens,
 
-    /// The generation was stopped because it produced one of the custom stop sequences
-    /// provided in the request.
+    /// The generation was stopped because it produced one of the custom stop
+    /// sequences provided in the request.
     StopSequence,
 
     /// The model invoked one or more tools, which terminated its generation.
     ToolUse,
 }
 
-/// The response from the Anthropic API for a message request. Contains generated content, message
-/// metadata, and usage statistics.
+/// The response from the Anthropic API for a message request. Contains
+/// generated content, message metadata, and usage statistics.
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct MessagesResponse {
     /// The generated content of the message.
@@ -513,8 +523,8 @@ pub struct MessagesResponse {
     /// Always "message" for this type of response.
     #[serde(rename = "type")]
     pub message_type: String,
-    /// Token usage statistics for this response. For streaming responses, this is cumulative over
-    /// all streamed messages.
+    /// Token usage statistics for this response. For streaming responses, this
+    /// is cumulative over all streamed messages.
     pub usage: Usage,
 }
 
@@ -632,7 +642,8 @@ impl ToolUse {
 pub struct ToolResult {
     /// The unique identifier of the tool use instance.
     pub tool_use_id: String,
-    /// The output of the tool. Arbitrary format, but should be intelligible to the assistant.
+    /// The output of the tool. Arbitrary format, but should be intelligible to
+    /// the assistant.
     pub content: String,
     /// Is the response an error?
     #[serde(skip_serializing_if = "is_false")]
@@ -842,8 +853,8 @@ impl Thinking {
 /// Metadata for tracking user interactions.
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct Metadata {
-    /// An external identifier for the user. Should be a uuid, hash value, or other opaque identifier.
-    /// Maximum length is 256 characters.
+    /// An external identifier for the user. Should be a uuid, hash value, or
+    /// other opaque identifier. Maximum length is 256 characters.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_id: Option<String>,
 }
@@ -885,10 +896,11 @@ pub struct MessagesRequest {
     /// Recommended for advanced use cases only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub top_k: Option<u32>,
-    /// Use nucleus sampling. In nucleus sampling, we compute the cumulative distribution over
-    /// all the options for each subsequent token in decreasing probability order and cut it
-    /// off once it exceeds a particular probability specified by top_p.
-    /// Recommended for advanced use cases only.
+    /// Use nucleus sampling. In nucleus sampling, we compute the cumulative
+    /// distribution over all the options for each subsequent token in
+    /// decreasing probability order and cut it off once it exceeds a
+    /// particular probability specified by top_p. Recommended for advanced
+    /// use cases only.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub top_p: Option<f32>,
 }
@@ -931,8 +943,9 @@ impl MessagesRequest {
 
     /// Merges a StreamedResponse into the current MessagesRequest.
     ///
-    /// Adds the entire content of the given streamed response as a new assistant message
-    /// to the conversation history, preserving all content types.
+    /// Adds the entire content of the given streamed response as a new
+    /// assistant message to the conversation history, preserving all
+    /// content types.
     ///
     /// Useful for maintaining context in ongoing conversations by incorporating
     /// streamed AI responses into the history for subsequent requests.
@@ -949,8 +962,8 @@ impl MessagesRequest {
     /// # Arguments
     ///
     /// * `name` - The name of the text editor tool, e.g. `text_editor`
-    /// * `typ` - The type of the text editor. This must match the model, and should be either
-    ///   `TEXT_EDITOR_35`, `TEXT_EDITOR_37`, `TEXT_EDITOR_4".
+    /// * `typ` - The type of the text editor. This must match the model, and
+    ///   should be either `TEXT_EDITOR_35`, `TEXT_EDITOR_37`, `TEXT_EDITOR_4".
     pub fn with_text_editor(mut self, typ: impl Into<String>) -> Self {
         let typ = typ.into();
         let name = if typ == TEXT_EDITOR_4 {
@@ -1010,7 +1023,8 @@ impl MessagesRequest {
         self
     }
 
-    /// Adds a system message to the request, appending it to the existing system messages.
+    /// Adds a system message to the request, appending it to the existing
+    /// system messages.
     pub fn add_system(&mut self, content: Content) {
         self.system.push(content);
     }
@@ -1048,28 +1062,30 @@ impl MessagesRequest {
     }
 
     /// Sets the top_p (nucleus sampling) parameter.
-    /// Recommended for advanced use cases only. You usually only need to use one of
-    /// temperature, top_k, or top_p.
+    /// Recommended for advanced use cases only. You usually only need to use
+    /// one of temperature, top_k, or top_p.
     pub fn with_top_p(mut self, top_p: f32) -> Self {
         self.top_p = Some(top_p);
         self
     }
 
-    /// Add a user message to the conversation history. Appends the content to the last user
-    /// message if we're still in the same role, otherwise creates a new user message.
+    /// Add a user message to the conversation history. Appends the content to
+    /// the last user message if we're still in the same role, otherwise
+    /// creates a new user message.
     pub fn add_user(&mut self, content: Content) {
         self.add_content(Role::User, content);
     }
 
-    /// Add an assistant message to the conversation history. Appends the content to the last
-    /// assistant message if we're still in the same role, otherwise creates a new assistant
-    /// message.
+    /// Add an assistant message to the conversation history. Appends the
+    /// content to the last assistant message if we're still in the same
+    /// role, otherwise creates a new assistant message.
     pub fn add_assistant(&mut self, content: Content) {
         self.add_content(Role::Assistant, content);
     }
 
-    /// Add a message with a specific role and content to the conversation history. Appends the
-    /// content to the last message of that role if it exists, otherwise creates a new message.
+    /// Add a message with a specific role and content to the conversation
+    /// history. Appends the content to the last message of that role if it
+    /// exists, otherwise creates a new message.
     fn add_content(&mut self, role: Role, content: Content) {
         if let Some(last_message) = self.messages.last_mut() {
             if last_message.role == role {
@@ -1168,7 +1184,8 @@ impl Anthropic {
     }
 
     // Creates an Anthropic client using a provided API key or the environment.
-    /// If the provided string is empty, falls back to the ANTHROPIC_API_KEY environment variable.
+    /// If the provided string is empty, falls back to the ANTHROPIC_API_KEY
+    /// environment variable.
     pub fn from_string_or_env(api_key: &str) -> Result<Self> {
         if !api_key.is_empty() {
             Ok(Self::new(api_key))
@@ -1177,7 +1194,8 @@ impl Anthropic {
         }
     }
 
-    /// Creates the headers for API requests, including the beta header if enabled.
+    /// Creates the headers for API requests, including the beta header if
+    /// enabled.
     fn create_headers(&self) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
         headers.insert("x-api-key", HeaderValue::from_str(&self.api_key)?);
@@ -1190,8 +1208,9 @@ impl Anthropic {
         Ok(headers)
     }
 
-    /// Sends a message request to the Anthropic API and returns a streaming response.
-    /// Allows processing of incremental updates as they arrive from the API.
+    /// Sends a message request to the Anthropic API and returns a streaming
+    /// response. Allows processing of incremental updates as they arrive
+    /// from the API.
     ///
     /// It is an error to pass a `MessagesRequest` with `stream` set to `false`.
     pub fn messages_stream(&self, request: &MessagesRequest) -> Result<StreamedResponse> {
@@ -1212,7 +1231,8 @@ impl Anthropic {
     }
 
     /// Sends a message request to the Anthropic API and returns the response.
-    /// Uses client defaults for model and max_tokens if not specified in the request.
+    /// Uses client defaults for model and max_tokens if not specified in the
+    /// request.
     pub async fn messages(&self, request: &MessagesRequest) -> Result<MessagesResponse> {
         let client = reqwest::Client::new();
         let response = client
@@ -1236,8 +1256,9 @@ impl Anthropic {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::Value;
+
+    use super::*;
 
     /// This is a test description
     #[allow(dead_code)]

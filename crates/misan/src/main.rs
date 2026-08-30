@@ -7,11 +7,10 @@ use std::{
 use clap::{Args, Parser, Subcommand};
 use colored::*;
 use env_logger::Builder;
-use log::{debug, error, info, LevelFilter};
-
+use log::{LevelFilter, debug, error, info};
 use misanthropy::{
-    Anthropic, Content, MessagesRequest, ANTHROPIC_API_KEY_ENV, ANTHROPIC_API_VERSION,
-    DEFAULT_MAX_TOKENS, DEFAULT_MODEL,
+    ANTHROPIC_API_KEY_ENV, ANTHROPIC_API_VERSION, Anthropic, Content, DEFAULT_MAX_TOKENS,
+    DEFAULT_MODEL, MessagesRequest,
 };
 
 fn setup_logger(verbose: u8, quiet: bool) {

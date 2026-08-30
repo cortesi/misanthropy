@@ -6,7 +6,8 @@ use crate::{ApiErrorResponse, ApiErrorType};
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Errors encountered during Anthropic API interactions.
-/// Covers API responses, HTTP issues, parsing failures, and client-side problems.
+/// Covers API responses, HTTP issues, parsing failures, and client-side
+/// problems.
 #[derive(Error, Debug)]
 pub enum Error {
     /// API request failed with an error message.

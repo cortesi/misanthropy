@@ -1,4 +1,4 @@
-use misanthropy::{Anthropic, Content, MessagesRequest, Tool, ToolChoice, DEFAULT_MODEL};
+use misanthropy::{Anthropic, Content, DEFAULT_MODEL, MessagesRequest, Tool, ToolChoice};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

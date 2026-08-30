@@ -36,11 +36,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Content::Thinking(_) => {
                     thinking_started = true;
                 }
-                Content::Text(_) => {
-                    if thinking_started && !response_started {
-                        println!("\n\n--- Response ---");
-                        response_started = true;
-                    }
+                Content::Text(_) if thinking_started && !response_started => {
+                    println!("\n\n--- Response ---");
+                    response_started = true;
                 }
                 _ => {}
             },

@@ -1,4 +1,4 @@
-use misanthropy::{tools, Anthropic, Content, MessagesRequest, DEFAULT_MODEL};
+use misanthropy::{Anthropic, Content, DEFAULT_MODEL, MessagesRequest, tools};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
