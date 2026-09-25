@@ -19,6 +19,33 @@ use schemars::{JsonSchema, Schema};
 use serde::{de::Deserialize, ser::Serialize};
 use serde_json::Value;
 
+/// Environment variable name for the Anthropic API key.
+pub const ANTHROPIC_API_KEY_ENV: &str = "ANTHROPIC_API_KEY";
+
+/// Version of the Anthropic API used in requests.
+pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
+
+/// Default maximum number of tokens for AI model responses.
+pub const DEFAULT_MAX_TOKENS: u32 = 1024;
+
+/// Default Anthropic AI model identifier used for API requests.
+pub const DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
+
+/// Name of the built-in text editor tool for Claude 3.5
+pub const TEXT_EDITOR_35: &str = "text_editor_20241022";
+
+/// Name of the built-in text editor tool for Claude 3.7
+pub const TEXT_EDITOR_37: &str = "text_editor_20250124";
+
+/// Name of the built-in text editor tool for Claude 4
+pub const TEXT_EDITOR_4: &str = "text_editor_20250429";
+
+/// Name of the built-in text editor tool for Claude 3.x
+pub const TEXT_EDITOR_NAME_3: &str = "str_replace_editor";
+
+/// Name of the built-in text editor tool for Claude 4.x
+pub const TEXT_EDITOR_NAME_4: &str = "str_replace_based_edit_tool";
+
 /// Client for interacting with the Anthropic API.
 /// Manages authentication and default parameters for requests.
 #[derive(Debug)]
@@ -747,33 +774,6 @@ pub struct Usage {
 impl Usage {
     pub fn merge(&self, other: &Usage) -> Self;
 }
-
-/// Environment variable name for the Anthropic API key.
-pub const ANTHROPIC_API_KEY_ENV: &str = "ANTHROPIC_API_KEY";
-
-/// Version of the Anthropic API used in requests.
-pub const ANTHROPIC_API_VERSION: &str = "2023-06-01";
-
-/// Default maximum number of tokens for AI model responses.
-pub const DEFAULT_MAX_TOKENS: u32 = 1024;
-
-/// Default Anthropic AI model identifier used for API requests.
-pub const DEFAULT_MODEL: &str = "claude-sonnet-4-20250514";
-
-/// Name of the built-in text editor tool for Claude 3.5
-pub const TEXT_EDITOR_35: &str = "text_editor_20241022";
-
-/// Name of the built-in text editor tool for Claude 3.7
-pub const TEXT_EDITOR_37: &str = "text_editor_20250124";
-
-/// Name of the built-in text editor tool for Claude 4
-pub const TEXT_EDITOR_4: &str = "text_editor_20250429";
-
-/// Name of the built-in text editor tool for Claude 3.x
-pub const TEXT_EDITOR_NAME_3: &str = "str_replace_editor";
-
-/// Name of the built-in text editor tool for Claude 4.x
-pub const TEXT_EDITOR_NAME_4: &str = "str_replace_based_edit_tool";
 
 pub mod tools {
     //! Type definitions for built-in tool use
